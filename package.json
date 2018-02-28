@@ -1,0 +1,31 @@
+{
+  "name": "rxfeedback",
+  "version": "0.0.1",
+  "description": "Architecture for RxJS",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NoTests/RxFeedback.js.git"
+  },
+  "keywords": [
+    "rxjs",
+    "architecture",
+    "redux"
+  ],
+  "author": "Krunoslav Zaher <krunoslav.zaher@gmail.com> (http://twitter.com/krunoslav.zaher)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/NoTests/RxFeedback.js/issues"
+  },
+  "homepage": "https://github.com/NoTests/RxFeedback.js#readme",
+  "devDependencies": {
+    "typescript": "^2.6.2"
+  },
+  "dependencies": {
+    "rxjs": "^5.0.0"
+  }
+}
