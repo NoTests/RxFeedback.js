@@ -81,12 +81,12 @@ function staticSystem<State, Event>(
     initialState: State,
     reduce: (state: State, event: Event) => State,
     feedbacks: Array<FeedbackLoop<State, Event>>,
-): rx.Observable<State> {
-    return rx.Observable.defer(() => {
+): Observable<State> {
+    return Observable.defer(() => {
         const state = new rx.ReplaySubject<State>(1);
         const scheduler = rx.Scheduler.async;
         const events = feedbacks.map(x => x(state, scheduler));
-        const mergedEvents: rx.Observable<Event> = Observable.merge(...events)
+        const mergedEvents: Observable<Event> = Observable.merge(...events)
             .observeOn(scheduler);
 
         const eventsWithEffects = mergedEvents.scan(reduce, initialState)
@@ -97,7 +97,7 @@ function staticSystem<State, Event>(
             .startWith(initialState)
             .observeOn(scheduler);
 
-        const hackOnSubscribed: Observable<State> = rx.Observable.defer(() => {
+        const hackOnSubscribed: Observable<State> = Observable.defer(() => {
             state.next(initialState);
             return Observable.empty();
         });
@@ -111,7 +111,7 @@ function takeUntilWithCompletedStatic<E, O>(
     other: Observable<O>,
     scheduler: IScheduler
 ): Observable<E> {
-    const completeAsSoonAsPossible = rx.Observable.empty<E>(scheduler);
+    const completeAsSoonAsPossible = Observable.empty<E>(scheduler);
     return other.take(1)
         .map(_ => completeAsSoonAsPossible)
         .startWith(this)
@@ -127,8 +127,12 @@ Observable.prototype.enqueue = enqueueStatic;
 
 declare module 'rxjs/Observable' {
     interface Observable<T> {
-        takeUntilWithCompleted: typeof takeUntilWithCompletedStatic;
-        enqueue: typeof enqueueStatic;
+        takeUntilWithCompleted<E, O>(
+            this: Observable<E>,
+            other: Observable<O>,
+            scheduler: IScheduler
+        ): Observable<E>;
+        enqueue<E>(this: Observable<E>, scheduler: IScheduler): Observable<E>;
     }
 }
 
@@ -136,13 +140,17 @@ Observable.system = staticSystem;
 
 declare module 'rxjs/Observable' {
     namespace Observable {
-        let system: typeof staticSystem;
+        function system<State, Event>(
+            initialState: State,
+            reduce: (state: State, event: Event) => State,
+            feedbacks: Array<FeedbackLoop<State, Event>>,
+        ): Observable<State>;
     }
 }
 
-type TimeIntervalInSeconds = number;
+export type TimeIntervalInSeconds = number;
 
-type FeedbackRetryStrategy<Event> =
+export type FeedbackRetryStrategy<Event> =
     { kind: 'ignoreErrorJustComplete' } |
     { kind: 'ignoreErrorAndReturn', value: Event } |
     { kind: 'catchError', handle: (error: {}) => Event } |
@@ -154,13 +162,13 @@ export function defaultRetryStrategy<Event>(): FeedbackRetryStrategy<Event> {
 
 namespace Extensions {
     export function retryStrategy<Event>(strategy: FeedbackRetryStrategy<Event>):
-        ((source: rx.Observable<Event>) => rx.Observable<Event>) {
-        return (source): rx.Observable<Event> => {
+        ((source: Observable<Event>) => Observable<Event>) {
+        return (source): Observable<Event> => {
             switch (strategy.kind) {
                 case 'ignoreErrorJustComplete':
-                    return source.catch((e) => rx.Observable.empty<Event>());
+                    return source.catch((e) => Observable.empty<Event>());
                 case 'ignoreErrorAndReturn':
-                    return source.catch((e) => rx.Observable.of(strategy.value));
+                    return source.catch((e) => Observable.of(strategy.value));
                 case 'exponentialBackoff':
                     return Observable.defer(() => {
                         let counter = 1;
@@ -182,7 +190,7 @@ namespace Extensions {
                             );
                     });
                 case 'catchError':
-                    return source.catch((e) => rx.Observable.of(strategy.handle(e)));
+                    return source.catch((e) => Observable.of(strategy.handle(e)));
                 default:
                     return js.unhandledCase(strategy);
             }
@@ -193,7 +201,7 @@ namespace Extensions {
 export namespace Feedbacks {
     export function react<State, Query, Event>(
         query: (state: State) => (Query | null),
-        effects: (query: Query) => rx.Observable<Event>,
+        effects: (query: Query) => Observable<Event>,
         retryStrategy: FeedbackRetryStrategy<Event>,
     ): FeedbackLoop<State, Event> {
         return (state, scheduler) => {
@@ -201,7 +209,7 @@ export namespace Feedbacks {
                 .distinctUntilChanged((lhs, rhs) => js.canonicalString(lhs) === js.canonicalString(rhs))
                 .switchMap((maybeQuery) => {
                     if (maybeQuery === null) {
-                        return rx.Observable.empty();
+                        return Observable.empty();
                     }
 
                     const retryer = Extensions.retryStrategy(retryStrategy);
@@ -212,7 +220,7 @@ export namespace Feedbacks {
 
     export function reactSet<State, Query, Event>(
         query: (state: State) => Set<Query>,
-        effects: (query: Query) => rx.Observable<Event>,
+        effects: (query: Query) => Observable<Event>,
         retryStrategy: FeedbackRetryStrategy<Event>,
     ): FeedbackLoop<State, Event> {
         const retryer = Extensions.retryStrategy(retryStrategy);
@@ -220,7 +228,7 @@ export namespace Feedbacks {
             const querySequence: Observable<Set<Query>> = state.map(query)
                 .shareReplay(1);
 
-            const newQueries = rx.Observable.zip(
+            const newQueries = Observable.zip(
                 querySequence,
                 querySequence.map(js.canonicalSetValues).startWith(new Set<String>())
             )
@@ -229,7 +237,7 @@ export namespace Feedbacks {
                 });
 
             return newQueries.flatMap(controls => {
-                const allEffects = js.toArray(controls).map((maybeQuery: Query): rx.Observable<Event> => {
+                const allEffects = js.toArray(controls).map((maybeQuery: Query): Observable<Event> => {
                     return retryer(effects(maybeQuery)
                         .takeUntilWithCompleted(
                             querySequence.filter((queries) => !queries.has(maybeQuery)), 
