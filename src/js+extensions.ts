@@ -27,7 +27,7 @@ function canonicalSegments(value: any): string[] {
 
     let result = ['{'];
     if (Array.isArray(value)) {
-        for (let i = 0; i < result.length; ++i) {
+        for (let i = 0; i < value.length; ++i) {
             result.push(i.toString());
             const serializedValue = canonicalPrimitiveSegments(+value[i]);
             if (serializedValue == null) {
