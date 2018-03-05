@@ -29,7 +29,7 @@ function canonicalSegments(value: any): string[] {
     if (Array.isArray(value)) {
         for (let i = 0; i < value.length; ++i) {
             result.push(i.toString());
-            const serializedValue = canonicalPrimitiveSegments(+value[i]);
+            const serializedValue = canonicalSegments(+value[i]);
             if (serializedValue == null) {
                 throw 'Unknown value ' + value[i];
             }
@@ -46,7 +46,7 @@ function canonicalSegments(value: any): string[] {
         allKeys.sort();
         allKeys.forEach(key => { 
             result.push(key);
-            const serializedValue = canonicalPrimitiveSegments(value[key]);
+            const serializedValue = canonicalSegments(value[key]);
             if (serializedValue == null) {
                 throw 'Unknown value ' + value[key];
             }
