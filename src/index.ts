@@ -84,7 +84,7 @@ function staticSystem<State, Event>(
 ): Observable<State> {
     return Observable.defer(() => {
         const state = new rx.ReplaySubject<State>(1);
-        const scheduler = rx.Scheduler.async;
+        const scheduler = rx.Scheduler.queue;
         const events = feedbacks.map(x => x(state, scheduler));
         const mergedEvents: Observable<Event> = Observable.merge(...events)
             .observeOn(scheduler);
