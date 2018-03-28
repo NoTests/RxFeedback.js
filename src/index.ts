@@ -102,7 +102,11 @@ function staticSystem<State, Event>(
             return Observable.empty();
         });
 
-        return Observable.merge(...[eventsWithEffects, hackOnSubscribed]);
+        return Observable.merge(...[eventsWithEffects, hackOnSubscribed])
+            .catch((e) => {
+                dispatchError(e);
+                return Observable.throw(e);
+            });
     });
 }
 
@@ -160,42 +164,62 @@ export function defaultRetryStrategy<Event>(): FeedbackRetryStrategy<Event> {
     return { kind: 'exponentialBackoff', initialTimeout: 1, maxBackoffFactor: 30 };
 }
 
-namespace Extensions {
-    export function retryStrategy<Event>(strategy: FeedbackRetryStrategy<Event>):
-        ((source: Observable<Event>) => Observable<Event>) {
-        return (source): Observable<Event> => {
-            switch (strategy.kind) {
-                case 'ignoreErrorJustComplete':
-                    return source.catch((e) => Observable.empty<Event>());
-                case 'ignoreErrorAndReturn':
-                    return source.catch((e) => Observable.of(strategy.value));
-                case 'exponentialBackoff':
-                    return Observable.defer(() => {
-                        let counter = 1;
-                        return source.do(
-                            () => {
-                                counter = 1;
-                            },
-                            () => {
-                                if (counter * 2 <= strategy.maxBackoffFactor) {
-                                    counter *= 2;
-                                }
-                            }
-                        )
-                            .retryWhen(e =>
-                                e.switchMap(x =>
-                                    Observable.of(0)
-                                        .delay(strategy.initialTimeout * counter * 1000)
-                                )
-                            );
-                    });
-                case 'catchError':
-                    return source.catch((e) => Observable.of(strategy.handle(e)));
-                default:
-                    return js.unhandledCase(strategy);
-            }
-        };
+let dispatchErrors = new rx.Subject<Error>();
+
+function dispatchError(error: any) {
+    if (error.constructor == Error.prototype.constructor) {
+        dispatchErrors.next(error);
+        return;
     }
+    dispatchErrors.next(new Error(error));
+}
+
+export let unhandledErrors: rx.Observable<Error> = dispatchErrors;
+
+export function materializedRetryStrategy<Event>(strategy: FeedbackRetryStrategy<Event>):
+    ((source: Observable<Event>) => Observable<Event>) {
+    return (source): Observable<Event> => {
+        switch (strategy.kind) {
+            case 'ignoreErrorJustComplete':
+                return source.catch((e) => {
+                    dispatchError(e);
+                    return Observable.empty<Event>();
+                });
+            case 'ignoreErrorAndReturn':
+                return source.catch((e) => {
+                    dispatchError(e);
+                    return Observable.of(strategy.value);
+                });
+            case 'exponentialBackoff':
+                return Observable.defer(() => {
+                    let counter = 1;
+                    return source.do(
+                        () => {
+                            counter = 1;
+                        },
+                        () => {
+                            if (counter * 2 <= strategy.maxBackoffFactor) {
+                                counter *= 2;
+                            }
+                        }
+                    )
+                        .retryWhen(e =>
+                            e.switchMap(x => {
+                                dispatchError(x);
+                                return Observable.of(0)
+                                    .delay(strategy.initialTimeout * counter * 1000)
+                            })
+                        );
+                });
+            case 'catchError':
+                return source.catch((e) => {
+                    dispatchError(e);
+                    return Observable.of(strategy.handle(e));
+                });
+            default:
+                return js.unhandledCase(strategy);
+        }
+    };
 }
 
 export namespace Feedbacks {
@@ -212,7 +236,7 @@ export namespace Feedbacks {
                         return Observable.empty();
                     }
 
-                    const retryer = Extensions.retryStrategy(retryStrategy);
+                    const retryer = materializedRetryStrategy(retryStrategy);
                     return retryer(effects(maybeQuery).enqueue(scheduler));
                 });
         };
@@ -223,7 +247,7 @@ export namespace Feedbacks {
         effects: (query: Query) => Observable<Event>,
         retryStrategy: FeedbackRetryStrategy<Event>,
     ): FeedbackLoop<State, Event> {
-        const retryer = Extensions.retryStrategy(retryStrategy);
+        const retryer = materializedRetryStrategy(retryStrategy);
         return (state, scheduler) => {
             const querySequence: Observable<Set<Query>> = state.map(query)
                 .shareReplay(1);
