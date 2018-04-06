@@ -3,7 +3,7 @@
     "outDir": "dist",
     "declarationDir": "dist",
     "declaration": true,
-    "module": "esnext",
+    "module": "commonjs",
     "target": "es5",
     "lib": ["es6", "dom"],
     "sourceMap": true,
