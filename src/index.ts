@@ -190,14 +190,14 @@ export function defaultRetryStrategy<Event>(): FeedbackRetryStrategy<Event> {
   return {
     kind: "exponentialBackoff",
     initialTimeout: 1,
-    maxBackoffFactor: 30
+    maxBackoffFactor: 8
   };
 }
 
 let dispatchErrors = new rx.Subject<Error>();
 
 function dispatchError(error: any) {
-  if (error.constructor == Error.prototype.constructor) {
+  if (error instanceof Error || error.constructor === Error) {
     dispatchErrors.next(error);
     return;
   }
