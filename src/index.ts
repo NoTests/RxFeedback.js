@@ -1,7 +1,6 @@
 import * as rx from "rxjs";
 import { SchedulerLike } from "rxjs";
 import { map } from 'rxjs/internal/operators/map';
-import { merge } from 'rxjs/internal/operators/merge';
 import { scan } from 'rxjs/internal/operators/scan';
 import { observeOn } from 'rxjs/internal/operators/observeOn';
 import { subscribeOn } from 'rxjs/internal/operators/subscribeOn';
@@ -41,7 +40,7 @@ export function embedFeedbackLoop<
       loop(outerState.pipe(map(how.selectState)), scheduler)
         .pipe(map(how.embedEvent))
     );
-    return merge(...embededLoops)(rx.empty());
+    return rx.merge(...embededLoops);
   };
 }
 
@@ -121,9 +120,9 @@ export function system<State, Event>(
     const state = new rx.ReplaySubject<State>(1);
     const scheduler = rx.queueScheduler;
     const events = feedbacks.map(x => x(state, scheduler));
-    const mergedEvents: rx.Observable<Event> = merge(
+    const mergedEvents: rx.Observable<Event> = rx.merge(
       ...events
-    )(rx.empty()).pipe(
+    ).pipe(
       observeOn(scheduler)
     );
 
@@ -143,7 +142,7 @@ export function system<State, Event>(
       return rx.empty();
     });
 
-    return merge(...[eventsWithEffects, hackOnSubscribed])(rx.empty())
+    return rx.merge(...[eventsWithEffects, hackOnSubscribed])
       .pipe(
         catchError(
           e => {
@@ -344,7 +343,7 @@ export namespace Feedbacks {
                   )
                 );
               });
-            return merge(...allEffects)(rx.empty());
+            return rx.merge(...allEffects);
           })
         )
       );
