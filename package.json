@@ -1,6 +1,6 @@
 {
   "name": "rxfeedback",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Architecture for RxJS",
   "main": "dist/index.js",
   "scripts": {
@@ -26,7 +26,7 @@
     "typescript": "^2.6.2"
   },
   "dependencies": {
-    "rxjs": "^5.0.0"
+    "rxjs": "^6.0.0"
   },
   "typings": "./dist/index.d.ts"
 }

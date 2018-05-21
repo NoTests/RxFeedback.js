@@ -1,11 +1,27 @@
 import * as rx from "rxjs";
-import { Observable } from "rxjs/Observable";
-import { IScheduler } from "rxjs/Scheduler";
+import { SchedulerLike } from "rxjs";
+import { map } from 'rxjs/internal/operators/map';
+import { merge } from 'rxjs/internal/operators/merge';
+import { scan } from 'rxjs/internal/operators/scan';
+import { observeOn } from 'rxjs/internal/operators/observeOn';
+import { subscribeOn } from 'rxjs/internal/operators/subscribeOn';
+import { tap } from 'rxjs/internal/operators/tap';
+import { startWith } from 'rxjs/internal/operators/startWith';
+import { catchError } from 'rxjs/internal/operators/catchError';
+import { switchAll } from 'rxjs/internal/operators/switchAll';
+import { take } from 'rxjs/internal/operators/take';
+import { delay } from 'rxjs/internal/operators/delay';
+import { retryWhen } from 'rxjs/internal/operators/retryWhen';
+import { switchMap } from 'rxjs/internal/operators/switchMap';
+import { distinctUntilChanged } from 'rxjs/internal/operators/distinctUntilChanged';
+import { shareReplay } from 'rxjs/internal/operators/shareReplay';
+import { filter } from 'rxjs/internal/operators/filter';
+import { mergeMap } from 'rxjs/internal/operators/mergeMap';
 import js from "./js+extensions";
 
 export type FeedbackLoop<State, Event> = (
   state: rx.Observable<State>,
-  scheduler: IScheduler
+  scheduler: SchedulerLike
 ) => rx.Observable<Event>;
 
 export function embedFeedbackLoop<
@@ -22,9 +38,10 @@ export function embedFeedbackLoop<
 ): FeedbackLoop<OuterState, OuterEvent> {
   return (outerState, scheduler) => {
     const embededLoops = loops.map(loop =>
-      loop(outerState.map(how.selectState), scheduler).map(how.embedEvent)
+      loop(outerState.pipe(map(how.selectState)), scheduler)
+        .pipe(map(how.embedEvent))
     );
-    return Observable.merge(...embededLoops);
+    return merge(...embededLoops)(rx.empty());
   };
 }
 
@@ -95,83 +112,71 @@ export function isFailed<Message, SuccessResult, ErrorResult>(
   return null;
 }
 
-function staticSystem<State, Event>(
+export function system<State, Event>(
   initialState: State,
   reduce: (state: State, event: Event) => State,
   feedbacks: Array<FeedbackLoop<State, Event>>
-): Observable<State> {
-  return Observable.defer(() => {
+): rx.Observable<State> {
+  return rx.defer(() => {
     const state = new rx.ReplaySubject<State>(1);
-    const scheduler = rx.Scheduler.queue;
+    const scheduler = rx.queueScheduler;
     const events = feedbacks.map(x => x(state, scheduler));
-    const mergedEvents: Observable<Event> = Observable.merge(
+    const mergedEvents: rx.Observable<Event> = merge(
       ...events
-    ).observeOn(scheduler);
+    )(rx.empty()).pipe(
+      observeOn(scheduler)
+    );
 
     const eventsWithEffects = mergedEvents
-      .scan(reduce, initialState)
-      .do(x => {
-        state.next(x);
-      })
-      .subscribeOn(scheduler)
-      .startWith(initialState)
-      .observeOn(scheduler);
+      .pipe(
+        scan(reduce, initialState),
+        tap(x => {
+          state.next(x);
+        }),
+        subscribeOn(scheduler),
+        startWith(initialState),
+        observeOn(scheduler)
+      );
 
-    const hackOnSubscribed: Observable<State> = Observable.defer(() => {
+    const hackOnSubscribed: rx.Observable<State> = rx.defer(() => {
       state.next(initialState);
-      return Observable.empty();
+      return rx.empty();
     });
 
-    return Observable.merge(...[eventsWithEffects, hackOnSubscribed]).catch(
-      e => {
-        dispatchError(e);
-        return Observable.throw(e);
-      }
-    );
+    return merge(...[eventsWithEffects, hackOnSubscribed])(rx.empty())
+      .pipe(
+        catchError(
+          e => {
+            dispatchError(e);
+            return rx.throwError(e);
+          }
+        )
+      );
   });
 }
 
-function takeUntilWithCompletedStatic<E, O>(
-  this: Observable<E>,
-  other: Observable<O>,
-  scheduler: IScheduler
-): Observable<E> {
-  const completeAsSoonAsPossible = Observable.empty<E>(scheduler);
-  return other
-    .take(1)
-    .map(_ => completeAsSoonAsPossible)
-    .startWith(this)
-    .switch();
-}
-
-function enqueueStatic<E>(this: Observable<E>, scheduler: IScheduler) {
-  return this.observeOn(scheduler).subscribeOn(scheduler);
-}
-
-Observable.prototype.takeUntilWithCompleted = takeUntilWithCompletedStatic;
-Observable.prototype.enqueue = enqueueStatic;
-
-declare module "rxjs/Observable" {
-  interface Observable<T> {
-    takeUntilWithCompleted<E, O>(
-      this: Observable<E>,
-      other: Observable<O>,
-      scheduler: IScheduler
-    ): Observable<E>;
-    enqueue<E>(this: Observable<E>, scheduler: IScheduler): Observable<E>;
+function takeUntilWithCompleted<E, O>(
+  other: rx.Observable<O>,
+  scheduler: SchedulerLike
+): ((source: rx.Observable<E>) => rx.Observable<E>) { 
+  return source => {
+    const completeAsSoonAsPossible = rx.empty(scheduler);
+    return other
+      .pipe(
+        take(1),
+        map(_ => completeAsSoonAsPossible),
+        startWith(source),
+        switchAll()
+      )
   }
 }
 
-Observable.system = staticSystem;
-
-declare module "rxjs/Observable" {
-  namespace Observable {
-    function system<State, Event>(
-      initialState: State,
-      reduce: (state: State, event: Event) => State,
-      feedbacks: Array<FeedbackLoop<State, Event>>
-    ): Observable<State>;
-  }
+function enqueue<E>(scheduler: SchedulerLike):
+  (source: rx.Observable<E>) => rx.Observable<E> {
+  return source => source.pipe(
+    observeOn(scheduler),
+    subscribeOn(scheduler)
+  );
 }
 
 export type TimeIntervalInSeconds = number;
@@ -208,24 +213,28 @@ export let unhandledErrors: rx.Observable<Error> = dispatchErrors;
 
 export function materializedRetryStrategy<Event>(
   strategy: FeedbackRetryStrategy<Event>
-): ((source: Observable<Event>) => Observable<Event>) {
-  return (source): Observable<Event> => {
+): ((source: rx.Observable<Event>) => rx.Observable<Event>) {
+  return (source): rx.Observable<Event> => {
     switch (strategy.kind) {
       case "ignoreErrorJustComplete":
-        return source.catch(e => {
-          dispatchError(e);
-          return Observable.empty<Event>();
-        });
+        return source.pipe(
+          catchError(e => {
+            dispatchError(e);
+            return rx.empty();
+          })
+        );
       case "ignoreErrorAndReturn":
-        return source.catch(e => {
-          dispatchError(e);
-          return Observable.of(strategy.value);
-        });
+        return source.pipe(
+          catchError(e => {
+            dispatchError(e);
+            return rx.of(strategy.value);
+          })
+        );
       case "exponentialBackoff":
-        return Observable.defer(() => {
+        return rx.defer(() => {
           let counter = 1;
-          return source
-            .do(
+          return source.pipe(
+            tap(
               () => {
                 counter = 1;
               },
@@ -234,21 +243,28 @@ export function materializedRetryStrategy<Event>(
                   counter *= 2;
                 }
               }
+            ),
+            retryWhen(e =>
+              e.pipe(
+                switchMap(x => {
+                  dispatchError(x);
+                  return rx.of(0).pipe(
+                    delay(
+                      strategy.initialTimeout * counter * 1000
+                    )
+                  );
+                })
+              )
             )
-            .retryWhen(e =>
-              e.switchMap(x => {
-                dispatchError(x);
-                return Observable.of(0).delay(
-                  strategy.initialTimeout * counter * 1000
-                );
-              })
-            );
+          )
         });
       case "catchError":
-        return source.catch(e => {
-          dispatchError(e);
-          return Observable.of(strategy.handle(e));
-        });
+        return source.pipe(
+          catchError(e => {
+            dispatchError(e);
+            return rx.of(strategy.handle(e));
+          })
+        );
       default:
         return js.unhandledCase(strategy);
     }
@@ -258,64 +274,79 @@ export function materializedRetryStrategy<Event>(
 export namespace Feedbacks {
   export function react<State, Query, Event>(
     query: (state: State) => Query | null,
-    effects: (query: Query) => Observable<Event>,
+    effects: (query: Query) => rx.Observable<Event>,
     retryStrategy: FeedbackRetryStrategy<Event>
   ): FeedbackLoop<State, Event> {
     const retryer = materializedRetryStrategy(retryStrategy);
     return (state, scheduler) => {
       return retryer(
-        state
-          .map(query)
-          .distinctUntilChanged(
+        state.pipe(
+          map(query),
+          distinctUntilChanged(
             (lhs, rhs) => js.canonicalString(lhs) === js.canonicalString(rhs)
-          )
-          .switchMap(maybeQuery => {
+          ),
+          switchMap(maybeQuery => {
             if (maybeQuery === null) {
-              return Observable.empty();
+              return rx.empty();
             }
 
+            let source: rx.Observable<Event> = rx.defer(() => effects(maybeQuery));
             return retryer(
-              rx.Observable.defer(() => effects(maybeQuery)).enqueue(scheduler)
+              source.pipe(
+                enqueue(scheduler)
+              )
             );
           })
+        )
       );
     };
   }
 
   export function reactSet<State, Query, Event>(
     query: (state: State) => Set<Query>,
-    effects: (query: Query) => Observable<Event>,
+    effects: (query: Query) => rx.Observable<Event>,
     retryStrategy: FeedbackRetryStrategy<Event>
   ): FeedbackLoop<State, Event> {
     const retryer = materializedRetryStrategy(retryStrategy);
     return (state, scheduler) => {
-      const querySequence: Observable<Set<Query>> = state
-        .map(query)
-        .shareReplay(1);
+      const querySequence: rx.Observable<Set<Query>> = state.pipe(
+        map(query),
+        shareReplay(1)
+      )
 
-      const newQueries = Observable.zip(
+      const newQueries = rx.zip(
         querySequence,
-        querySequence.map(js.canonicalSetValues).startWith(new Set<String>())
-      ).map(queries => {
-        return js.canonicalDifference(queries[0], queries[1]);
-      });
+        querySequence.pipe(
+          map(js.canonicalSetValues),
+          startWith(new Set<String>())
+        )
+      ).pipe(
+        map(queries => {
+          return js.canonicalDifference(queries[0], queries[1]);
+        })
+      );
 
       return retryer(
-        newQueries.flatMap(controls => {
-          const allEffects = js
-            .toArray(controls)
-            .map((maybeQuery: Query): Observable<Event> => {
-              return retryer(
-                rx.Observable.defer(() => effects(maybeQuery))
-                  .takeUntilWithCompleted(
-                    querySequence.filter(queries => !queries.has(maybeQuery)),
-                    scheduler
+        newQueries.pipe(
+          mergeMap(controls => {
+            const allEffects = js
+              .toArray(controls)
+              .map((maybeQuery: Query): rx.Observable<Event> => {
+                return retryer(
+                  rx.defer(() => effects(maybeQuery)).pipe(
+                    takeUntilWithCompleted(
+                      querySequence.pipe(
+                        filter(queries => !queries.has(maybeQuery))
+                      ),
+                      scheduler
+                    ),
+                    enqueue(scheduler)
                   )
-                  .enqueue(scheduler)
-              );
-            });
-          return Observable.merge(...allEffects);
-        })
+                );
+              });
+            return merge(...allEffects)(rx.empty());
+          })
+        )
       );
     };
   }
