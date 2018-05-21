@@ -2,77 +2,20 @@ export function unhandledCase(unhandled: never): never {
   throw unhandled;
 }
 
-// tslint:disable-next-line
-function canonicalPrimitiveSegments(value: any): [string] | null {
-  if (value === null) {
-    return ["n"];
-  }
-  if (value === undefined) {
-    return ["u"];
-  }
-  if (typeof value === "boolean") {
-    return [value ? "t" : "f"];
-  }
-  if (typeof value === "string") {
-    return [value.replace(/\\/g, "\\\\").replace(/\"/g, '\\"')];
-  }
-  if (typeof value === "number") {
-    return [value.toString()];
-  }
-
-  return null;
-}
-
-// tslint:disable-next-line
-function canonicalSegments(value: any): string[] {
-  const primitiveResult = canonicalPrimitiveSegments(value);
-
-  if (primitiveResult != null) {
-    return primitiveResult;
-  }
-
-  if (typeof value === "function") {
-    throw 'Functions can\'t be serialized';
-  }
-  if (typeof value !== "object") {
-    throw "Unknown object";
-  }
-
-  let result = ["{"];
-  if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; ++i) {
-      result.push(i.toString());
-      const serializedValue = canonicalSegments(+value[i]);
-      if (serializedValue == null) {
-        throw "Unknown value " + value[i];
-      }
-      result.push(...serializedValue);
+function orderedStringify(obj: any) { 
+  const allKeys: string[] = []; 
+  const distinct = { };
+  JSON.stringify(obj, (k, v) => { 
+    if (distinct[k] === undefined) {
+      distinct[k] = true;
+      allKeys.push(k); 
     }
-  } else {
-    let allKeys: string[] = [];
-    for (const key in value) {
-      if (value.hasOwnProperty(key)) {
-        allKeys.push(key);
-      }
-    }
-    allKeys.sort();
-    allKeys.forEach(key => {
-      result.push(key);
-      const serializedValue = canonicalSegments(value[key]);
-      if (serializedValue == null) {
-        throw "Unknown value " + value[key];
-      }
-      result.push(...serializedValue);
-    });
-  }
-  result.push("}");
-  return result;
+    return v; 
+  }); 
+  return JSON.stringify(obj, allKeys.sort()); 
 }
 
-// tslint:disable-next-line
-function canonicalString(value: any): String {
-  return canonicalSegments(value).join(",");
-}
+const canonicalString = orderedStringify;
 
 function canonicalSetValues<T>(set: Set<T>): Set<String> {
   const result = new Set<String>();
@@ -108,8 +51,8 @@ export function toArray<T>(original: Set<T>): T[] {
 
 export default {
   unhandledCase,
-  canonicalString,
   canonicalSetValues,
+  canonicalString,
   canonicalDifference,
   toArray
 };
