@@ -17,8 +17,8 @@ function orderedStringify(obj: any) {
 
 const canonicalString = orderedStringify;
 
-function canonicalSetValues<T>(set: Set<T>): Set<String> {
-  const result = new Set<String>();
+function canonicalSetValues<T>(set: Set<T>): Set<string> {
+  const result = new Set<string>();
   set.forEach(value => {
     return result.add(canonicalString(value));
   });
@@ -28,7 +28,7 @@ function canonicalSetValues<T>(set: Set<T>): Set<String> {
 
 function canonicalDifference<T>(
   original: Set<T>,
-  canonical: Set<String>
+  canonical: Set<string>
 ): Set<T> {
   const result = new Set<T>();
   original.forEach(elem => {

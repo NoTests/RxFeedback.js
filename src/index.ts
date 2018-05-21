@@ -309,15 +309,19 @@ export namespace Feedbacks {
     const retryer = materializedRetryStrategy(retryStrategy);
     return (state, scheduler) => {
       const querySequence: rx.Observable<Set<Query>> = state.pipe(
-        map(query),
+        map(x => query(x)),
         shareReplay(1)
       )
 
+      const serializedQuerySequence: rx.Observable<Set<string>> = querySequence.pipe(
+        map(js.canonicalSetValues), 
+        shareReplay(1)
+      );
+
       const newQueries = rx.zip(
         querySequence,
-        querySequence.pipe(
-          map(js.canonicalSetValues),
-          startWith(new Set<String>())
+        serializedQuerySequence.pipe(
+          startWith(new Set<string>())
         )
       ).pipe(
         map(queries => {
@@ -331,11 +335,12 @@ export namespace Feedbacks {
             const allEffects = js
               .toArray(controls)
               .map((maybeQuery: Query): rx.Observable<Event> => {
+                let serializedMaybeQuery = js.canonicalString(maybeQuery);
                 return retryer(
                   rx.defer(() => effects(maybeQuery)).pipe(
                     takeUntilWithCompleted(
-                      querySequence.pipe(
-                        filter(queries => !queries.has(maybeQuery))
+                      serializedQuerySequence.pipe(
+                        filter(queries => !queries.has(serializedMaybeQuery))
                       ),
                       scheduler
                     ),
