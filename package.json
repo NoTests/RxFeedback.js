@@ -1,6 +1,6 @@
 {
   "name": "rxfeedback",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "Architecture for RxJS",
   "main": "dist/index.js",
   "scripts": {
@@ -11,6 +11,10 @@
     "type": "git",
     "url": "git+https://github.com/NoTests/RxFeedback.js.git"
   },
+  "files": [
+    "dist/",
+    "LICENSE"
+  ],
   "keywords": [
     "rxjs",
     "architecture",
@@ -28,5 +32,6 @@
   "dependencies": {
     "rxjs": "^6.0.0"
   },
+  "bundledDependencies": [],
   "typings": "./dist/index.d.ts"
 }
