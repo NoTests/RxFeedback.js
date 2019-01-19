@@ -1,6 +1,6 @@
 {
   "name": "rxfeedback",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "Architecture for RxJS",
   "main": "dist/index.js",
   "scripts": {

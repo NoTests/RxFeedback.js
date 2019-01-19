@@ -29,7 +29,7 @@ export declare type SingleRequest<Request, SuccessResult, ErrorResult> = {
     kind: "failed";
     result: ErrorResult;
 };
-export declare namespace SingleMessage {
+export declare namespace SingleRequest {
     /**
      * Creates idle request.
      */

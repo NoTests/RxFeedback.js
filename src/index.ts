@@ -56,7 +56,7 @@ export type SingleRequest<Request, SuccessResult, ErrorResult> =
   | { kind: "success"; result: SuccessResult }
   | { kind: "failed"; result: ErrorResult };
 
-export namespace SingleMessage {
+export namespace SingleRequest {
   /**
    * Creates idle request.
    */

@@ -37,15 +37,15 @@ function liftFeedbackLoop(loops, mappings) {
     };
 }
 exports.liftFeedbackLoop = liftFeedbackLoop;
-var SingleMessage;
-(function (SingleMessage) {
+var SingleRequest;
+(function (SingleRequest) {
     /**
      * Creates idle request.
      */
     function idle() {
         return { kind: "idle" };
     }
-    SingleMessage.idle = idle;
+    SingleRequest.idle = idle;
     /**
      * Creates in flight request.
      * @param request The in flight request.
@@ -53,7 +53,7 @@ var SingleMessage;
     function tryRequest(request) {
         return { kind: "try", request: request };
     }
-    SingleMessage.tryRequest = tryRequest;
+    SingleRequest.tryRequest = tryRequest;
     /**
      * Creates sucessful request result.
      * @param result The request success result.
@@ -61,7 +61,7 @@ var SingleMessage;
     function success(result) {
         return { kind: "success", result: result };
     }
-    SingleMessage.success = success;
+    SingleRequest.success = success;
     /**
      * Creates failed request result.
      * @param result The request failed result.
@@ -69,8 +69,8 @@ var SingleMessage;
     function failed(result) {
         return { kind: "failed", result: result };
     }
-    SingleMessage.failed = failed;
-})(SingleMessage = exports.SingleMessage || (exports.SingleMessage = {}));
+    SingleRequest.failed = failed;
+})(SingleRequest = exports.SingleRequest || (exports.SingleRequest = {}));
 /**
  * Is the sigle request in the idle state.
  * @param request The single request being tested.
