@@ -1,6 +1,15 @@
 "use strict";
+var __assign = (this && this.__assign) || Object.assign || function(t) {
+    for (var s, i = 1, n = arguments.length; i < n; i++) {
+        s = arguments[i];
+        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+            t[p] = s[p];
+    }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 var rx = require("rxjs");
+var rxjs_1 = require("rxjs");
 var map_1 = require("rxjs/internal/operators/map");
 var scan_1 = require("rxjs/internal/operators/scan");
 var observeOn_1 = require("rxjs/internal/operators/observeOn");
@@ -8,77 +17,119 @@ var subscribeOn_1 = require("rxjs/internal/operators/subscribeOn");
 var tap_1 = require("rxjs/internal/operators/tap");
 var startWith_1 = require("rxjs/internal/operators/startWith");
 var catchError_1 = require("rxjs/internal/operators/catchError");
-var switchAll_1 = require("rxjs/internal/operators/switchAll");
-var take_1 = require("rxjs/internal/operators/take");
 var delay_1 = require("rxjs/internal/operators/delay");
 var retryWhen_1 = require("rxjs/internal/operators/retryWhen");
 var switchMap_1 = require("rxjs/internal/operators/switchMap");
-var distinctUntilChanged_1 = require("rxjs/internal/operators/distinctUntilChanged");
-var shareReplay_1 = require("rxjs/internal/operators/shareReplay");
-var filter_1 = require("rxjs/internal/operators/filter");
-var mergeMap_1 = require("rxjs/internal/operators/mergeMap");
 var js_extensions_1 = require("./js+extensions");
-function embedFeedbackLoop(loops, how) {
+/**
+ * Lifts feedback loop that operates on a subset of state and emits embeddable mutations to a parent feedback loop.
+ *
+ * @param loops Lifted feedback loops.
+ * @param mappings State and event transformers.
+ */
+function liftFeedbackLoop(loops, mappings) {
     return function (outerState, scheduler) {
         var embededLoops = loops.map(function (loop) {
-            return loop(outerState.pipe(map_1.map(how.selectState)), scheduler)
-                .pipe(map_1.map(how.embedEvent));
+            return loop(outerState.pipe(map_1.map(mappings.mapState)), scheduler)
+                .pipe(map_1.map(mappings.mapMutation));
         });
         return rx.merge.apply(rx, embededLoops);
     };
 }
-exports.embedFeedbackLoop = embedFeedbackLoop;
+exports.liftFeedbackLoop = liftFeedbackLoop;
 var SingleMessage;
 (function (SingleMessage) {
+    /**
+     * Creates idle request.
+     */
     function idle() {
         return { kind: "idle" };
     }
     SingleMessage.idle = idle;
-    function tryMessage(message) {
-        return { kind: "try", message: message };
+    /**
+     * Creates in flight request.
+     * @param request The in flight request.
+     */
+    function tryRequest(request) {
+        return { kind: "try", request: request };
     }
-    SingleMessage.tryMessage = tryMessage;
+    SingleMessage.tryRequest = tryRequest;
+    /**
+     * Creates sucessful request result.
+     * @param result The request success result.
+     */
     function success(result) {
         return { kind: "success", result: result };
     }
     SingleMessage.success = success;
+    /**
+     * Creates failed request result.
+     * @param result The request failed result.
+     */
     function failed(result) {
         return { kind: "failed", result: result };
     }
     SingleMessage.failed = failed;
 })(SingleMessage = exports.SingleMessage || (exports.SingleMessage = {}));
-function isIdle(message) {
-    return message.kind === "idle";
+/**
+ * Is the sigle request in the idle state.
+ * @param request The single request being tested.
+ */
+function isIdle(request) {
+    return request.kind === "idle";
 }
 exports.isIdle = isIdle;
-function isTry(message) {
-    if (message.kind === "try") {
-        return message.message;
+/**
+ * Is the single request being attempted.
+ * @param request The single request being tested.
+ */
+function isTry(request) {
+    if (request.kind === "try") {
+        return request.request;
     }
     return null;
 }
 exports.isTry = isTry;
-function isSuccess(message) {
-    if (message.kind === "success") {
-        return message.result;
+/**
+ * Is the single request successfully executed.
+ * @param request Is the single request successfully executed.
+ */
+function isSuccess(request) {
+    if (request.kind === "success") {
+        return request.result;
     }
     return null;
 }
 exports.isSuccess = isSuccess;
-function isFailed(message) {
-    if (message.kind === "failed") {
-        return message.result;
+/**
+ * Did the request execution fail.
+ * @param request Did the request execution fail.
+ */
+function isFailed(request) {
+    if (request.kind === "failed") {
+        return request.result;
     }
     return null;
 }
 exports.isFailed = isFailed;
-function system(initialState, reduce, feedbacks) {
+/**
+  The system simulation will be started upon subscription and stopped after subscription is disposed.
+
+  System state is represented as a `State` parameter.
+  Mutations are represented by `Mutation` parameter.
+
+ * @param initialState The initial state of the system.
+ * @param reduce Calculates the new system state from the existing state and a transition mutation (system integrator, reducer).
+ * @param feedback The feedback loops that produce mutations depending on the current system state.
+ * @returns The current state of the system.
+ */
+function system(initialState, reduce, feedback) {
     return rx.defer(function () {
         var state = new rx.ReplaySubject(1);
         var scheduler = rx.queueScheduler;
-        var events = feedbacks.map(function (x) { return x(state, scheduler); });
-        var mergedEvents = rx.merge.apply(rx, events).pipe(observeOn_1.observeOn(scheduler));
-        var eventsWithEffects = mergedEvents
+        var events = feedback.map(function (x) { return x(state, scheduler); });
+        var mergedMutation = rx.merge.apply(rx, events).pipe(observeOn_1.observeOn(scheduler));
+        var eventsWithEffects = mergedMutation
             .pipe(scan_1.scan(reduce, initialState), tap_1.tap(function (x) {
             state.next(x);
         }), subscribeOn_1.subscribeOn(scheduler), startWith_1.startWith(initialState), observeOn_1.observeOn(scheduler));
@@ -93,16 +144,9 @@ function system(initialState, reduce, feedbacks) {
     });
 }
 exports.system = system;
-function takeUntilWithCompleted(other, scheduler) {
-    return function (source) {
-        var completeAsSoonAsPossible = rx.empty(scheduler);
-        return other
-            .pipe(take_1.take(1), map_1.map(function (_) { return completeAsSoonAsPossible; }), startWith_1.startWith(source), switchAll_1.switchAll());
-    };
-}
-function enqueue(scheduler) {
-    return function (source) { return source.pipe(observeOn_1.observeOn(scheduler), subscribeOn_1.subscribeOn(scheduler)); };
-}
+/**
+ * Default retry strategy for a feedback loop.
+ */
 function defaultRetryStrategy() {
     return {
         kind: "exponentialBackoff",
@@ -119,7 +163,15 @@ function dispatchError(error) {
     }
     dispatchErrors.next(new Error(error));
 }
+/**
+ * Emits the unhandled error in a feedback loop that causes a retry strategy to activate.
+ */
 exports.unhandledErrors = dispatchErrors;
+/**
+ * Creates `Observable` transformation from configuration.
+ *
+ * @param strategy The strategy configuration.
+ */
 function materializedRetryStrategy(strategy) {
     return function (source) {
         switch (strategy.kind) {
@@ -155,45 +207,164 @@ function materializedRetryStrategy(strategy) {
                     return rx.of(strategy.handle(e));
                 }));
             default:
-                return js_extensions_1.default.unhandledCase(strategy);
+                return js_extensions_1.unhandledCase(strategy);
         }
     };
 }
 exports.materializedRetryStrategy = materializedRetryStrategy;
 var Feedbacks;
 (function (Feedbacks) {
-    function react(query, effects, retryStrategy) {
-        var retryer = materializedRetryStrategy(retryStrategy);
-        return function (state, scheduler) {
-            return retryer(state.pipe(map_1.map(query), distinctUntilChanged_1.distinctUntilChanged(function (lhs, rhs) { return js_extensions_1.default.canonicalString(lhs) === js_extensions_1.default.canonicalString(rhs); }), switchMap_1.switchMap(function (maybeQuery) {
-                if (maybeQuery === null) {
-                    return rx.empty();
-                }
-                var source = rx.defer(function () { return effects(maybeQuery); });
-                return retryer(source.pipe(enqueue(scheduler)));
-            })));
-        };
+    /**
+     State: State type of the system.
+     Request: Subset of state used to control the feedback loop.
+  
+     When `request` returns a value, that value is being passed into `effects` lambda to decide which effects should be performed.
+     In case new `request` is different from the previous one, new effects are calculated by using `effects` lambda and then performed.
+  
+     When `request` returns `nil`, feedback loops doesn't perform any effect.
+  
+     * @param request The request to perform some effects.
+     * @param effects The request effects.
+     * @param retryStrategy The retry strategy for the effects in case an error happends.
+     * @returns The feedback loop performing the effects.
+     */
+    function react(request, effects, retryStrategy) {
+        return reactWithLatest(function (state) {
+            var requestInstance = request(state);
+            return requestInstance != null
+                ? [{ id: requestInstance, request: requestInstance }]
+                : [];
+        }, function (request, _) { return effects(request); }, retryStrategy);
     }
     Feedbacks.react = react;
-    function reactSet(query, effects, retryStrategy) {
-        var retryer = materializedRetryStrategy(retryStrategy);
-        return function (state, scheduler) {
-            var querySequence = state.pipe(map_1.map(function (x) { return query(x); }), shareReplay_1.shareReplay(1));
-            var serializedQuerySequence = querySequence.pipe(map_1.map(js_extensions_1.default.canonicalSetValues), shareReplay_1.shareReplay(1));
-            var newQueries = rx.zip(querySequence, serializedQuerySequence.pipe(startWith_1.startWith(new Set()))).pipe(map_1.map(function (queries) {
-                return js_extensions_1.default.canonicalDifference(queries[0], queries[1]);
-            }));
-            return retryer(newQueries.pipe(mergeMap_1.mergeMap(function (controls) {
-                var allEffects = js_extensions_1.default
-                    .toArray(controls)
-                    .map(function (maybeQuery) {
-                    var serializedMaybeQuery = js_extensions_1.default.canonicalString(maybeQuery);
-                    return retryer(rx.defer(function () { return effects(maybeQuery); }).pipe(takeUntilWithCompleted(serializedQuerySequence.pipe(filter_1.filter(function (queries) { return !queries.has(serializedMaybeQuery); })), scheduler), enqueue(scheduler)));
-                });
-                return rx.merge.apply(rx, allEffects);
-            })));
-        };
+    /**
+     State: State type of the system.
+     Request: Subset of state used to control the feedback loop.
+  
+     When `request` returns a value, that value is being passed into `effects` lambda to decide which effects should be performed.
+     In case new `request` is different from the previous one, new effects are calculated by using `effects` lambda and then performed.
+  
+     When `request` returns `nil`, feedback loops doesn't perform any effect.
+  
+     * @param requests Requests to perform some effects.
+     * @param effects The request effects.
+     * @param retryStrategy The retry strategy for the effects in case an error happends.
+     * @returns The feedback loop performing the effects.
+     */
+    function reactSet(requests, effects, retryStrategy) {
+        return reactWithLatest(function (state) {
+            var requestInstances = requests(state);
+            var identifiableRequests = [];
+            requestInstances.forEach(function (request) {
+                identifiableRequests.push({ id: request, request: request });
+            });
+            return identifiableRequests;
+        }, function (request, _) { return effects(request); }, retryStrategy);
     }
     Feedbacks.reactSet = reactSet;
+    /**
+     State: State type of the system.
+     Request: Subset of state used to control the feedback loop.
+  
+     For every uniquely identifiable request `effects` closure is invoked with the initial value of the request and future requests corresponding to the same identifier.
+  
+     Subsequent equal values of request are not emitted from the effects state parameter.
+  
+     * @param requests Requests to perform some effects.
+     * @param effects The request effects.
+     * @param retryStrategy The retry strategy for the effects in case an error happends.
+     * @returns The feedback loop performing the effects.
+     */
+    function reactWithLatest(request, effects, retryStrategy) {
+        var retryer = materializedRetryStrategy(retryStrategy);
+        return function (state, scheduler) {
+            var mutations = new rx.Observable(function (observer) {
+                var requestLifetimeTracker = {
+                    isUnsubscribed: false,
+                    lifetimeByIdentifier: {}
+                };
+                function unsubscribe() {
+                    requestLifetimeTracker.isUnsubscribed = true;
+                    var inFlightRequests = requestLifetimeTracker.lifetimeByIdentifier;
+                    requestLifetimeTracker.lifetimeByIdentifier = {};
+                    Object.keys(inFlightRequests).forEach(function (key) { inFlightRequests[key].subscription.unsubscribe(); });
+                }
+                var subscription = state.pipe(map_1.map(request))
+                    .subscribe(function (requests) {
+                    var state = requestLifetimeTracker;
+                    if (state.isUnsubscribed) {
+                        return;
+                    }
+                    var lifetimeToUnsubscribeByIdentifier = __assign({}, state.lifetimeByIdentifier);
+                    requests.forEach(function (indexedRequest) {
+                        var requestID = js_extensions_1.canonicalString(indexedRequest.id);
+                        var request = indexedRequest.request;
+                        var requestLifetime = state.lifetimeByIdentifier[requestID];
+                        if (requestLifetime) {
+                            delete lifetimeToUnsubscribeByIdentifier[requestID];
+                            if (js_extensions_1.deepEqual(requestLifetime.latestRequest.value, request)) {
+                                return;
+                            }
+                            requestLifetime.latestRequest.next(request);
+                        }
+                        else {
+                            var subscription_1 = new rx.Subscription();
+                            var latestRequestSubject = new rxjs_1.BehaviorSubject(request);
+                            var lifetimeIdentifier_1 = {};
+                            state.lifetimeByIdentifier[requestID] = {
+                                subscription: subscription_1,
+                                lifetimeIdentifier: lifetimeIdentifier_1,
+                                latestRequest: latestRequestSubject
+                            };
+                            var requestsSubscription = effects(request, latestRequestSubject.asObservable())
+                                .pipe(observeOn_1.observeOn(scheduler), retryer)
+                                .subscribe(function (mutation) {
+                                var lifetime = state.lifetimeByIdentifier[requestID];
+                                if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier_1)) {
+                                    return;
+                                }
+                                if (state.isUnsubscribed) {
+                                    return;
+                                }
+                                observer.next(mutation);
+                            }, function (error) {
+                                var lifetime = state.lifetimeByIdentifier[requestID];
+                                if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier_1)) {
+                                    return;
+                                }
+                                if (state.isUnsubscribed) {
+                                    return;
+                                }
+                                observer.error(error);
+                            });
+                            subscription_1.add(requestsSubscription);
+                        }
+                    });
+                    var allUnsubscribeKeys = Object.keys(lifetimeToUnsubscribeByIdentifier);
+                    allUnsubscribeKeys.forEach(function (key) {
+                        if (state.lifetimeByIdentifier[key]
+                            && state.lifetimeByIdentifier[key].lifetimeIdentifier === lifetimeToUnsubscribeByIdentifier[key].lifetimeIdentifier) {
+                            delete state.lifetimeByIdentifier[key];
+                        }
+                        lifetimeToUnsubscribeByIdentifier[key].subscription.unsubscribe();
+                    });
+                }, function (error) {
+                    var state = requestLifetimeTracker;
+                    if (state.isUnsubscribed) {
+                        return;
+                    }
+                    observer.error(error);
+                }, function () {
+                    observer.complete();
+                });
+                return new rx.Subscription(function () {
+                    unsubscribe();
+                    subscription.unsubscribe();
+                });
+            });
+            return retryer(mutations);
+        };
+    }
+    Feedbacks.reactWithLatest = reactWithLatest;
 })(Feedbacks = exports.Feedbacks || (exports.Feedbacks = {}));
 //# sourceMappingURL=index.js.map

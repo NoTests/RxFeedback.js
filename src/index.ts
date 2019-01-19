@@ -1,5 +1,5 @@
 import * as rx from "rxjs";
-import { SchedulerLike } from "rxjs";
+import { SchedulerLike, SubscriptionLike, BehaviorSubject, MonoTypeOperatorFunction } from "rxjs";
 import { map } from 'rxjs/internal/operators/map';
 import { scan } from 'rxjs/internal/operators/scan';
 import { observeOn } from 'rxjs/internal/operators/observeOn';
@@ -7,126 +7,174 @@ import { subscribeOn } from 'rxjs/internal/operators/subscribeOn';
 import { tap } from 'rxjs/internal/operators/tap';
 import { startWith } from 'rxjs/internal/operators/startWith';
 import { catchError } from 'rxjs/internal/operators/catchError';
-import { switchAll } from 'rxjs/internal/operators/switchAll';
-import { take } from 'rxjs/internal/operators/take';
 import { delay } from 'rxjs/internal/operators/delay';
 import { retryWhen } from 'rxjs/internal/operators/retryWhen';
 import { switchMap } from 'rxjs/internal/operators/switchMap';
-import { distinctUntilChanged } from 'rxjs/internal/operators/distinctUntilChanged';
-import { shareReplay } from 'rxjs/internal/operators/shareReplay';
-import { filter } from 'rxjs/internal/operators/filter';
-import { mergeMap } from 'rxjs/internal/operators/mergeMap';
-import js from "./js+extensions";
+import { deepEqual, unhandledCase, canonicalString } from "./js+extensions";
 
-export type FeedbackLoop<State, Event> = (
+/**
+ * Feedback loop transforming `State` into a sequence of `Mutation`s.
+ */
+export type FeedbackLoop<State, Mutation> = (
   state: rx.Observable<State>,
   scheduler: SchedulerLike
-) => rx.Observable<Event>;
+) => rx.Observable<Mutation>;
 
-export function embedFeedbackLoop<
+/**
+ * Lifts feedback loop that operates on a subset of state and emits embeddable mutations to a parent feedback loop.
+ * 
+ * @param loops Lifted feedback loops.
+ * @param mappings State and event transformers.
+ */
+export function liftFeedbackLoop<
   InnerState,
-  InnerEvent,
+  InnerMutation,
   OuterState,
-  OuterEvent
+  OuterMutation
 >(
-  loops: FeedbackLoop<InnerState, InnerEvent>[],
-  how: {
-    selectState: (outerState: OuterState) => InnerState;
-    embedEvent: (outerEvent: InnerEvent) => OuterEvent;
+  loops: FeedbackLoop<InnerState, InnerMutation>[],
+  mappings: {
+    mapState: (outerState: OuterState) => InnerState;
+    mapMutation: (outerMutation: InnerMutation) => OuterMutation;
   }
-): FeedbackLoop<OuterState, OuterEvent> {
+): FeedbackLoop<OuterState, OuterMutation> {
   return (outerState, scheduler) => {
     const embededLoops = loops.map(loop =>
-      loop(outerState.pipe(map(how.selectState)), scheduler)
-        .pipe(map(how.embedEvent))
+      loop(outerState.pipe(map(mappings.mapState)), scheduler)
+        .pipe(map(mappings.mapMutation))
     );
     return rx.merge(...embededLoops);
   };
 }
 
-export type SingleMessage<Message, SuccessResult, ErrorResult> =
+/**
+ * Single request sending state machine.
+ */
+export type SingleRequest<Request, SuccessResult, ErrorResult> =
   | { kind: "idle" }
-  | { kind: "try"; message: Message }
+  | { kind: "try"; request: Request }
   | { kind: "success"; result: SuccessResult }
   | { kind: "failed"; result: ErrorResult };
 
 export namespace SingleMessage {
-  export function idle<Message, SuccessResult, ErrorResult>(): SingleMessage<
-    Message,
+  /**
+   * Creates idle request.
+   */
+  export function idle<Request, SuccessResult, ErrorResult>(): SingleRequest<
+    Request,
     SuccessResult,
     ErrorResult
   > {
     return { kind: "idle" };
   }
 
-  export function tryMessage<Message, SuccessResult, ErrorResult>(
-    message: Message
-  ): SingleMessage<Message, SuccessResult, ErrorResult> {
-    return { kind: "try", message: message };
+  /**
+   * Creates in flight request.
+   * @param request The in flight request. 
+   */
+  export function tryRequest<Request, SuccessResult, ErrorResult>(
+    request: Request
+  ): SingleRequest<Request, SuccessResult, ErrorResult> {
+    return { kind: "try", request: request };
   }
 
-  export function success<Message, SuccessResult, ErrorResult>(
+  /**
+   * Creates sucessful request result.
+   * @param result The request success result.
+   */
+  export function success<Request, SuccessResult, ErrorResult>(
     result: SuccessResult
-  ): SingleMessage<Message, SuccessResult, ErrorResult> {
+  ): SingleRequest<Request, SuccessResult, ErrorResult> {
     return { kind: "success", result: result };
   }
 
-  export function failed<Message, SuccessResult, ErrorResult>(
+  /**
+   * Creates failed request result.
+   * @param result The request failed result.
+   */
+  export function failed<Request, SuccessResult, ErrorResult>(
     result: ErrorResult
-  ): SingleMessage<Message, SuccessResult, ErrorResult> {
+  ): SingleRequest<Request, SuccessResult, ErrorResult> {
     return { kind: "failed", result: result };
   }
 }
 
-export function isIdle<Message, SuccessResult, ErrorResult>(
-  message: SingleMessage<Message, SuccessResult, ErrorResult>
+/**
+ * Is the sigle request in the idle state.
+ * @param request The single request being tested.
+ */
+export function isIdle<Request, SuccessResult, ErrorResult>(
+  request: SingleRequest<Request, SuccessResult, ErrorResult>
 ): boolean {
-  return message.kind === "idle";
+  return request.kind === "idle";
 }
 
-export function isTry<Message, SuccessResult, ErrorResult>(
-  message: SingleMessage<Message, SuccessResult, ErrorResult>
-): Message | null {
-  if (message.kind === "try") {
-    return message.message;
+/**
+ * Is the single request being attempted.
+ * @param request The single request being tested.
+ */
+export function isTry<Request, SuccessResult, ErrorResult>(
+  request: SingleRequest<Request, SuccessResult, ErrorResult>
+): Request | null {
+  if (request.kind === "try") {
+    return request.request;
   }
   return null;
 }
 
-export function isSuccess<Message, SuccessResult, ErrorResult>(
-  message: SingleMessage<Message, SuccessResult, ErrorResult>
+/**
+ * Is the single request successfully executed.
+ * @param request Is the single request successfully executed.
+ */
+export function isSuccess<Request, SuccessResult, ErrorResult>(
+  request: SingleRequest<Request, SuccessResult, ErrorResult>
 ): SuccessResult | null {
-  if (message.kind === "success") {
-    return message.result;
+  if (request.kind === "success") {
+    return request.result;
   }
   return null;
 }
 
-export function isFailed<Message, SuccessResult, ErrorResult>(
-  message: SingleMessage<Message, SuccessResult, ErrorResult>
+/**
+ * Did the request execution fail.
+ * @param request Did the request execution fail.
+ */
+export function isFailed<Request, SuccessResult, ErrorResult>(
+  request: SingleRequest<Request, SuccessResult, ErrorResult>
 ): ErrorResult | null {
-  if (message.kind === "failed") {
-    return message.result;
+  if (request.kind === "failed") {
+    return request.result;
   }
   return null;
 }
 
-export function system<State, Event>(
+/**
+  The system simulation will be started upon subscription and stopped after subscription is disposed.
+
+  System state is represented as a `State` parameter.
+  Mutations are represented by `Mutation` parameter.
+
+ * @param initialState The initial state of the system.
+ * @param reduce Calculates the new system state from the existing state and a transition mutation (system integrator, reducer).
+ * @param feedback The feedback loops that produce mutations depending on the current system state.
+ * @returns The current state of the system.
+ */
+export function system<State, Mutation>(
   initialState: State,
-  reduce: (state: State, event: Event) => State,
-  feedbacks: Array<FeedbackLoop<State, Event>>
+  reduce: (state: State, event: Mutation) => State,
+  feedback: Array<FeedbackLoop<State, Mutation>>
 ): rx.Observable<State> {
   return rx.defer(() => {
     const state = new rx.ReplaySubject<State>(1);
     const scheduler = rx.queueScheduler;
-    const events = feedbacks.map(x => x(state, scheduler));
-    const mergedEvents: rx.Observable<Event> = rx.merge(
+    const events = feedback.map(x => x(state, scheduler));
+    const mergedMutation: rx.Observable<Mutation> = rx.merge(
       ...events
     ).pipe(
       observeOn(scheduler)
     );
 
-    const eventsWithEffects = mergedEvents
+    const eventsWithEffects = mergedMutation
       .pipe(
         scan(reduce, initialState),
         tap(x => {
@@ -154,43 +202,28 @@ export function system<State, Event>(
   });
 }
 
-function takeUntilWithCompleted<E, O>(
-  other: rx.Observable<O>,
-  scheduler: SchedulerLike
-): ((source: rx.Observable<E>) => rx.Observable<E>) { 
-  return source => {
-    const completeAsSoonAsPossible = rx.empty(scheduler);
-    return other
-      .pipe(
-        take(1),
-        map(_ => completeAsSoonAsPossible),
-        startWith(source),
-        switchAll()
-      )
-  }
-}
-
-function enqueue<E>(scheduler: SchedulerLike):
-  (source: rx.Observable<E>) => rx.Observable<E> {
-  return source => source.pipe(
-    observeOn(scheduler),
-    subscribeOn(scheduler)
-  );
-}
-
+/**
+ * Time interval in seconds.
+ */
 export type TimeIntervalInSeconds = number;
 
-export type FeedbackRetryStrategy<Event> =
+/**
+ * Configuration of commonly used retry strategies for feedback loop.
+ */
+export type FeedbackRetryStrategy<Mutation> =
   | { kind: "ignoreErrorJustComplete" }
-  | { kind: "ignoreErrorAndReturn"; value: Event }
-  | { kind: "catchError"; handle: (error: {}) => Event }
+  | { kind: "ignoreErrorAndReturn"; value: Mutation }
+  | { kind: "catchError"; handle: (error: {}) => Mutation }
   | {
       kind: "exponentialBackoff";
       initialTimeout: TimeIntervalInSeconds;
       maxBackoffFactor: number;
     };
 
-export function defaultRetryStrategy<Event>(): FeedbackRetryStrategy<Event> {
+/**
+ * Default retry strategy for a feedback loop.
+ */
+export function defaultRetryStrategy<Mutation>(): FeedbackRetryStrategy<Mutation> {
   return {
     kind: "exponentialBackoff",
     initialTimeout: 1,
@@ -208,12 +241,20 @@ function dispatchError(error: any) {
   dispatchErrors.next(new Error(error));
 }
 
+/**
+ * Emits the unhandled error in a feedback loop that causes a retry strategy to activate.
+ */
 export let unhandledErrors: rx.Observable<Error> = dispatchErrors;
 
-export function materializedRetryStrategy<Event>(
-  strategy: FeedbackRetryStrategy<Event>
-): ((source: rx.Observable<Event>) => rx.Observable<Event>) {
-  return (source): rx.Observable<Event> => {
+/**
+ * Creates `Observable` transformation from configuration.
+ * 
+ * @param strategy The strategy configuration.
+ */
+export function materializedRetryStrategy<Mutation>(
+  strategy: FeedbackRetryStrategy<Mutation>
+): MonoTypeOperatorFunction<Mutation> {
+  return (source): rx.Observable<Mutation> => {
     switch (strategy.kind) {
       case "ignoreErrorJustComplete":
         return source.pipe(
@@ -265,93 +306,184 @@ export function materializedRetryStrategy<Event>(
           })
         );
       default:
-        return js.unhandledCase(strategy);
+        return unhandledCase(strategy);
     }
   };
 }
 
 export namespace Feedbacks {
-  export function react<State, Query, Event>(
-    query: (state: State) => Query | null,
-    effects: (query: Query) => rx.Observable<Event>,
-    retryStrategy: FeedbackRetryStrategy<Event>
-  ): FeedbackLoop<State, Event> {
-    const retryer = materializedRetryStrategy(retryStrategy);
-    return (state, scheduler) => {
-      return retryer(
-        state.pipe(
-          map(query),
-          distinctUntilChanged(
-            (lhs, rhs) => js.canonicalString(lhs) === js.canonicalString(rhs)
-          ),
-          switchMap(maybeQuery => {
-            if (maybeQuery === null) {
-              return rx.empty();
-            }
+  /**
+   State: State type of the system.
+   Request: Subset of state used to control the feedback loop.
 
-            let source: rx.Observable<Event> = rx.defer(() => effects(maybeQuery));
-            return retryer(
-              source.pipe(
-                enqueue(scheduler)
-              )
-            );
-          })
-        )
-      );
-    };
+   When `request` returns a value, that value is being passed into `effects` lambda to decide which effects should be performed.
+   In case new `request` is different from the previous one, new effects are calculated by using `effects` lambda and then performed.
+
+   When `request` returns `nil`, feedback loops doesn't perform any effect.
+
+   * @param request The request to perform some effects.
+   * @param effects The request effects.
+   * @param retryStrategy The retry strategy for the effects in case an error happends.
+   * @returns The feedback loop performing the effects.
+   */
+  export function react<State, Request, Mutation>(
+    request: (state: State) => Request | null,
+    effects: (request: Request) => rx.Observable<Mutation>,
+    retryStrategy: FeedbackRetryStrategy<Mutation>
+  ): FeedbackLoop<State, Mutation> {
+    return reactWithLatest(
+      state => {
+        const requestInstance = request(state);
+        return requestInstance != null 
+          ? [{ id: requestInstance, request: requestInstance }] 
+          : []
+      }, 
+      (request, _) => effects(request), 
+      retryStrategy
+    );
   }
 
-  export function reactSet<State, Query, Event>(
-    query: (state: State) => Set<Query>,
-    effects: (query: Query) => rx.Observable<Event>,
-    retryStrategy: FeedbackRetryStrategy<Event>
-  ): FeedbackLoop<State, Event> {
-    const retryer = materializedRetryStrategy(retryStrategy);
-    return (state, scheduler) => {
-      const querySequence: rx.Observable<Set<Query>> = state.pipe(
-        map(x => query(x)),
-        shareReplay(1)
-      )
+  /**
+   State: State type of the system.
+   Request: Subset of state used to control the feedback loop.
 
-      const serializedQuerySequence: rx.Observable<Set<string>> = querySequence.pipe(
-        map(js.canonicalSetValues), 
-        shareReplay(1)
-      );
+   When `request` returns a value, that value is being passed into `effects` lambda to decide which effects should be performed.
+   In case new `request` is different from the previous one, new effects are calculated by using `effects` lambda and then performed.
 
-      const newQueries = rx.zip(
-        querySequence,
-        serializedQuerySequence.pipe(
-          startWith(new Set<string>())
-        )
-      ).pipe(
-        map(queries => {
-          return js.canonicalDifference(queries[0], queries[1]);
-        })
-      );
+   When `request` returns `nil`, feedback loops doesn't perform any effect.
 
-      return retryer(
-        newQueries.pipe(
-          mergeMap(controls => {
-            const allEffects = js
-              .toArray(controls)
-              .map((maybeQuery: Query): rx.Observable<Event> => {
-                let serializedMaybeQuery = js.canonicalString(maybeQuery);
-                return retryer(
-                  rx.defer(() => effects(maybeQuery)).pipe(
-                    takeUntilWithCompleted(
-                      serializedQuerySequence.pipe(
-                        filter(queries => !queries.has(serializedMaybeQuery))
-                      ),
-                      scheduler
-                    ),
-                    enqueue(scheduler)
-                  )
-                );
-              });
-            return rx.merge(...allEffects);
-          })
-        )
-      );
+   * @param requests Requests to perform some effects.
+   * @param effects The request effects.
+   * @param retryStrategy The retry strategy for the effects in case an error happends.
+   * @returns The feedback loop performing the effects.
+   */
+  export function reactSet<State, Request, Mutation>(
+    requests: (state: State) => Set<Request>,
+    effects: (request: Request) => rx.Observable<Mutation>,
+    retryStrategy: FeedbackRetryStrategy<Mutation>
+  ): FeedbackLoop<State, Mutation> {
+    return reactWithLatest(
+      state => {
+        const requestInstances = requests(state);
+        const identifiableRequests: { id: {}, request: Request }[] = []
+        requestInstances.forEach(request => {
+          identifiableRequests.push({ id: request, request: request });
+        });
+        return identifiableRequests;
+      }, 
+      (request, _) => effects(request), 
+      retryStrategy
+    ); 
+  }
+
+  /**
+   State: State type of the system.
+   Request: Subset of state used to control the feedback loop.
+
+   For every uniquely identifiable request `effects` closure is invoked with the initial value of the request and future requests corresponding to the same identifier.
+
+   Subsequent equal values of request are not emitted from the effects state parameter.
+
+   * @param requests Requests to perform some effects.
+   * @param effects The request effects.
+   * @param retryStrategy The retry strategy for the effects in case an error happends.
+   * @returns The feedback loop performing the effects.
+   */
+  export function reactWithLatest<State, Request, Mutation>(
+    request: (state: State) => { id: any, request: Request }[],
+    effects: (initialRequest: Request, latestRequest: rx.Observable<Request>) => rx.Observable<Mutation>,
+    retryStrategy: FeedbackRetryStrategy<Mutation>
+  ): FeedbackLoop<State, Mutation> {
+    type RequestLifetimeTracking = {
+      isUnsubscribed: Boolean,
+      lifetimeByIdentifier: { [serializedRequestID: string]: RequestLifetime }
+    };
+    type LifetimeToken = {};
+    type RequestLifetime = {
+      subscription: SubscriptionLike,
+      lifetimeIdentifier: LifetimeToken,
+      latestRequest: BehaviorSubject<Request>
+    };
+
+    const retryer: MonoTypeOperatorFunction<Mutation> = materializedRetryStrategy(retryStrategy);
+    return (state, scheduler): rx.Observable<Mutation> => {
+      const mutations = new rx.Observable((observer: rx.Observer<Mutation>) => {
+        let requestLifetimeTracker: RequestLifetimeTracking = {
+          isUnsubscribed: false,
+          lifetimeByIdentifier: {}
+        };
+
+        function unsubscribe() {
+          requestLifetimeTracker.isUnsubscribed = true;
+          const inFlightRequests = requestLifetimeTracker.lifetimeByIdentifier;
+          requestLifetimeTracker.lifetimeByIdentifier = {};
+          Object.keys(inFlightRequests).forEach(key => { inFlightRequests[key].subscription.unsubscribe(); });
+        }
+
+        let subscription = state.pipe(map(request))
+          .subscribe(requests => {
+            const state = requestLifetimeTracker;
+            if (state.isUnsubscribed) { return; }
+
+            let lifetimeToUnsubscribeByIdentifier = { ...state.lifetimeByIdentifier };
+
+            requests.forEach(indexedRequest => {
+              const requestID = canonicalString(indexedRequest.id);
+              const request = indexedRequest.request;
+              let requestLifetime = state.lifetimeByIdentifier[requestID];
+              if (requestLifetime) {
+                delete lifetimeToUnsubscribeByIdentifier[requestID];
+                if (deepEqual(requestLifetime.latestRequest.value, request)) { return; }
+                requestLifetime.latestRequest.next(request);
+              } else {
+                let subscription = new rx.Subscription();
+                let latestRequestSubject = new BehaviorSubject(request);
+                let lifetimeIdentifier: LifetimeToken = {};
+                state.lifetimeByIdentifier[requestID] = {
+                  subscription: subscription,
+                  lifetimeIdentifier: lifetimeIdentifier,
+                  latestRequest: latestRequestSubject
+                };
+                let requestsSubscription = effects(request, latestRequestSubject.asObservable())
+                  .pipe(observeOn(scheduler), retryer)
+                  .subscribe(mutation => {
+                    const lifetime = state.lifetimeByIdentifier[requestID];
+                    if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier)) { return; }
+                    if (state.isUnsubscribed) { return; }
+                    observer.next(mutation);
+                  }, error => {
+                    const lifetime = state.lifetimeByIdentifier[requestID];
+                    if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier)) { return; }
+                    if (state.isUnsubscribed) { return; }
+                    observer.error(error);
+                  });
+                subscription.add(requestsSubscription);
+              }
+            });
+            const allUnsubscribeKeys = Object.keys(lifetimeToUnsubscribeByIdentifier);
+            allUnsubscribeKeys.forEach(key => { 
+              if (state.lifetimeByIdentifier[key] 
+                && state.lifetimeByIdentifier[key].lifetimeIdentifier === lifetimeToUnsubscribeByIdentifier[key].lifetimeIdentifier) {
+                delete state.lifetimeByIdentifier[key]; 
+              }
+              lifetimeToUnsubscribeByIdentifier[key].subscription.unsubscribe();
+            });
+          }, error => {
+            const state = requestLifetimeTracker;
+            if (state.isUnsubscribed) { return; }
+
+            observer.error(error);
+          }, () => {
+            observer.complete();
+          });
+        
+        return new rx.Subscription(() => {
+          unsubscribe();
+          subscription.unsubscribe();
+        });
+      });
+
+      return retryer(mutations);
     };
   }
 }
