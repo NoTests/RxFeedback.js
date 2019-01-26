@@ -4,8 +4,8 @@
   "description": "Architecture for RxJS",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "test": "tsc && ./node_modules/mocha/bin/mocha dist/test/test.js"
+    "build": "./node_modules/typescript/bin/tsc",
+    "test": "./node_modules/mocha/bin/_mocha ./src/test/test.ts -r ./node_modules/ts-node/register ./src/test/**/*.ts"
   },
   "repository": {
     "type": "git",
@@ -32,8 +32,8 @@
     "chai": "^4.2.0",
     "mocha": "^5.2.0",
     "ts-lint": "^4.5.1",
-    "ts-node": "^7.0.1",
-    "typescript": "^2.6.2"
+    "ts-node": "^8.0.2",
+    "typescript": "^3.2.4"
   },
   "dependencies": {
     "rxjs": "^6.0.0"
