@@ -1,3 +1,6 @@
+[![Travis CI](https://travis-ci.org/NoTests/RxFeedback.js.svg?branch=master)](https://travis-ci.org/NoTests/RxFeedback.js) [![npm version](https://badge.fury.io/js/rxfeedback.svg)](http://badge.fury.io/js/rxfeedback)
+
+
 #### RxFeedback 
 TypeScript/JavaScript version of [RxFeedback](https://github.com/kzaher/RxFeedback)
 
