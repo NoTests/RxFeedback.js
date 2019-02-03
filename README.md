@@ -16,7 +16,7 @@ The simplest architecture for [RxJS](https://github.com/ReactiveX/RxJS)
             function system<State, Event>(
                 initialState: State,
                 reduce: (state: State, event: Event) => State,
-                feedbacks: Array<FeedbackLoop<State, Event>>,
+                feedback: FeedbackLoop<State, Event>[],
             ): Observable<State>;
         }
     }
@@ -25,9 +25,9 @@ The simplest architecture for [RxJS](https://github.com/ReactiveX/RxJS)
 # Why
 
 * Straightforward
-    * if it's state -> State
-    * if it's a way to modify state -> Event/Command
-    * it it's an effect -> encode it into part of state and then design a feedback loop
+    * If it did happen -> Event
+    * If it should happen -> Request
+    * To fulfill Request -> Feedback loo
 * Declarative
     * System behavior is first declaratively specified and effects begin after subscribe is called => Compile time proof there are no "unhandled states"
 * Debugging is easier

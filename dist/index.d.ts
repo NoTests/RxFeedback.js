@@ -81,7 +81,7 @@ export declare function isFailed<Request, SuccessResult, ErrorResult>(request: S
  * @param feedback The feedback loops that produce events depending on the current system state.
  * @returns The current state of the system.
  */
-export declare function system<State, Event>(initialState: State, reduce: (state: State, event: Event) => State, feedback: Array<FeedbackLoop<State, Event>>): rx.Observable<State>;
+export declare function system<State, Event>(initialState: State, reduce: (state: State, event: Event) => State, feedback: FeedbackLoop<State, Event>[]): rx.Observable<State>;
 /**
  * Time interval in seconds.
  */

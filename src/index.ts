@@ -162,7 +162,7 @@ export function isFailed<Request, SuccessResult, ErrorResult>(
 export function system<State, Event>(
   initialState: State,
   reduce: (state: State, event: Event) => State,
-  feedback: Array<FeedbackLoop<State, Event>>
+  feedback: FeedbackLoop<State, Event>[]
 ): rx.Observable<State> {
   return rx.defer(() => {
     const state = new rx.ReplaySubject<State>(1);
