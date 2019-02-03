@@ -27,14 +27,14 @@ describe("System", function () {
                         'c': [{ identifier: 0, value: '2' }, { identifier: 1, value: '3' }],
                         'd': [{ identifier: 1, value: '3' }]
                     }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var mutations = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
+                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
                         recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
                         return state.pipe(map_1.map(function (test) { return "Got " + test.value; }), track({
                             onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
                             onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
                         }));
                     }, __1.defaultRetryStrategy())(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('abc', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('abc', {
                         a: 'Got 1',
                         b: 'Got 2',
                         c: 'Got 3'
@@ -61,14 +61,14 @@ describe("System", function () {
                         'c': [{ identifier: 0, value: '2' }, { identifier: 1, value: '3' }],
                         'd': [{ identifier: 1, value: '3' }]
                     }, error).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var mutations = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
+                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
                         recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
                         return state.pipe(map_1.map(function (test) { return "Got " + test.value; }), track({
                             onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
                             onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('a|', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('a|', {
                         a: 'Got 1',
                     });
                 });
@@ -89,14 +89,14 @@ describe("System", function () {
                         'c': [{ identifier: 0, value: '2' }, { identifier: 1, value: '3' }],
                         'd': [{ identifier: 1, value: '3' }]
                     }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var mutations = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
+                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
                         recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
                         return state.pipe(map_1.map(function (test) { return "Got " + test.value; }), track({
                             onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
                             onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('a|', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('a|', {
                         a: 'Got 1',
                     });
                 });
@@ -117,7 +117,7 @@ describe("System", function () {
                         'b': [{ identifier: 0, value: '3' }, { identifier: 1, value: '2' }],
                         'c': [{ identifier: 0, value: '4' }, { identifier: 1, value: '2' }],
                     }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var mutations = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
+                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
                         recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
                         return state.pipe(map_1.map(function (test) {
                             if (test.value == '3') {
@@ -129,7 +129,7 @@ describe("System", function () {
                             onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('(ab)', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('(ab)', {
                         a: 'Got 1',
                         b: 'Got 2',
                     });
@@ -153,7 +153,7 @@ describe("System", function () {
                         'b': [{ identifier: 0, value: '3' }, { identifier: 1, value: '2' }],
                         'c': [{ identifier: 0, value: '4' }, { identifier: 1, value: '2' }],
                     }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var mutations = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
+                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
                         recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
                         return state.pipe(map_1.map(function (test) {
                             if (test.value == '3') {
@@ -165,7 +165,7 @@ describe("System", function () {
                             onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('(ab)', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('(ab)', {
                         a: 'Got 1',
                         b: 'Got 2'
                     });
@@ -190,7 +190,7 @@ describe("System", function () {
                         'b': [{ identifier: 0, value: '3' }, { identifier: 1, value: '2' }],
                         'c': [{ identifier: 0, value: '4' }, { identifier: 1, value: '2' }],
                     }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var mutations = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
+                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
                         recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
                         return state.pipe(map_1.map(function (test) {
                             if (test.value == '3') {
@@ -202,7 +202,7 @@ describe("System", function () {
                             onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('(ab)', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('(ab)', {
                         a: 'Got 1',
                         b: 'Got 2',
                     });
@@ -226,7 +226,7 @@ describe("System", function () {
                         'b': [{ identifier: 0, value: '3' }, { identifier: 1, value: '2' }],
                         'c': [{ identifier: 0, value: '4' }, { identifier: 1, value: '2' }],
                     }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var mutations = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
+                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
                         recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
                         return state.pipe(map_1.map(function (test) {
                             return "Got " + test.value;
@@ -235,7 +235,7 @@ describe("System", function () {
                             onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, '^----!').toBe('(ab)c', {
+                    testScheduler.expectObservable(events, '^----!').toBe('(ab)c', {
                         a: 'Got 1',
                         b: 'Got 2',
                         c: 'Got 3'
@@ -265,14 +265,14 @@ describe("System", function () {
                         'd': [{ identifier: 0, value: '3' }],
                         'e': [{ identifier: 1, value: '4' }]
                     }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var mutations = __1.Feedbacks.react(function (state) { return state[0]; }, function (initial) {
+                    var events = __1.Feedbacks.react(function (state) { return state[0]; }, function (initial) {
                         recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
                         return rxjs_1.concat(rxjs_1.of("Got " + initial.value), never).pipe(track({
                             onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
                             onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
                         }));
                     }, __1.defaultRetryStrategy())(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('a--bc', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('a--bc', {
                         a: 'Got 1',
                         b: 'Got 3',
                         c: 'Got 4'
@@ -305,14 +305,14 @@ describe("System", function () {
                         'd': [{ identifier: 0, value: '3' }, { identifier: 2, value: '6' }],
                         'e': [{ identifier: 3, value: '5' }]
                     }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var mutations = __1.Feedbacks.reactSet(function (state) { return new Set(state); }, function (initial) {
+                    var events = __1.Feedbacks.reactSet(function (state) { return new Set(state); }, function (initial) {
                         recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
                         return rxjs_1.concat(rxjs_1.of("Got " + initial.value), never).pipe(track({
                             onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
                             onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
                         }));
                     }, __1.defaultRetryStrategy())(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^-------------------!").toBe('(ab)c-----d--e', {
+                    testScheduler.expectObservable(events, "^-------------------!").toBe('(ab)c-----d--e', {
                         a: 'Got 1',
                         b: 'Got 5',
                         c: 'Got 6',

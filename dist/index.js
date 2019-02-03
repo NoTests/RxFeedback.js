@@ -25,7 +25,7 @@ var retryWhen_1 = require("rxjs/internal/operators/retryWhen");
 var switchMap_1 = require("rxjs/internal/operators/switchMap");
 var js_extensions_1 = require("./js+extensions");
 /**
- * Lifts feedback loop that operates on a subset of state and emits embeddable mutations to a parent feedback loop.
+ * Lifts feedback loop that operates on a subset of state and emits embeddable events to the parent feedback loop.
  *
  * @param loops Lifted feedback loops.
  * @param mappings State and event transformers.
@@ -34,7 +34,7 @@ function liftFeedbackLoop(loops, mappings) {
     return function (outerState, scheduler) {
         var embededLoops = loops.map(function (loop) {
             return loop(outerState.pipe(map_1.map(mappings.mapState)), scheduler)
-                .pipe(map_1.map(mappings.mapMutation));
+                .pipe(map_1.map(mappings.mapEvent));
         });
         return rx.merge.apply(rx, embededLoops);
     };
@@ -119,11 +119,11 @@ exports.isFailed = isFailed;
   The system simulation will be started upon subscription and stopped after subscription is disposed.
 
   System state is represented as a `State` parameter.
-  Mutations are represented by `Mutation` parameter.
+  Events are represented by the `Event` parameter.
 
  * @param initialState The initial state of the system.
- * @param reduce Calculates the new system state from the existing state and a transition mutation (system integrator, reducer).
- * @param feedback The feedback loops that produce mutations depending on the current system state.
+ * @param reduce Calculates the new system state from the existing state and a transition event (system integrator, reducer).
+ * @param feedback The feedback loops that produce events depending on the current system state.
  * @returns The current state of the system.
  */
 function system(initialState, reduce, feedback) {
@@ -131,8 +131,8 @@ function system(initialState, reduce, feedback) {
         var state = new rx.ReplaySubject(1);
         var scheduler = rx.queueScheduler;
         var events = feedback.map(function (x) { return x(state, scheduler); });
-        var mergedMutation = rx.merge.apply(rx, events).pipe(observeOn_1.observeOn(scheduler));
-        var eventsWithEffects = mergedMutation
+        var mergedEvent = rx.merge.apply(rx, events).pipe(observeOn_1.observeOn(scheduler));
+        var eventsWithEffects = mergedEvent
             .pipe(scan_1.scan(reduce, initialState), tap_1.tap(function (x) {
             state.next(x);
         }), subscribeOn_1.subscribeOn(scheduler), startWith_1.startWith(initialState), observeOn_1.observeOn(scheduler));
@@ -281,7 +281,7 @@ var Feedbacks;
     function reactWithLatest(request, effects, retryStrategy) {
         var retryer = materializedRetryStrategy(retryStrategy);
         return function (state, scheduler) {
-            var mutations = new rx.Observable(function (observer) {
+            var events = new rx.Observable(function (observer) {
                 var requestLifetimeTracker = {
                     isUnsubscribed: false,
                     lifetimeByIdentifier: {}
@@ -321,7 +321,7 @@ var Feedbacks;
                             };
                             var requestsSubscription = effects(request, latestRequestSubject.asObservable())
                                 .pipe(observeOn_1.observeOn(scheduler), retryer)
-                                .subscribe(function (mutation) {
+                                .subscribe(function (event) {
                                 var lifetime = state.lifetimeByIdentifier[requestID];
                                 if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier_1)) {
                                     return;
@@ -329,7 +329,7 @@ var Feedbacks;
                                 if (state.isUnsubscribed) {
                                     return;
                                 }
-                                observer.next(mutation);
+                                observer.next(event);
                             }, function (error) {
                                 var lifetime = state.lifetimeByIdentifier[requestID];
                                 if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier_1)) {
@@ -365,7 +365,7 @@ var Feedbacks;
                     subscription.unsubscribe();
                 });
             });
-            return retryer(mutations);
+            return retryer(events);
         };
     }
     Feedbacks.reactWithLatest = reactWithLatest;

@@ -51,7 +51,7 @@ describe("System", function () {
                         }).pipe(
                             track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) })
                         );
-                        let mutations = Feedbacks.reactWithLatest(
+                        let events = Feedbacks.reactWithLatest(
                             (state: TestChild[])  => state.map(element => ({ id: element.identifier, request: element })),
                             (initial: TestChild, state: Observable<TestChild>): Observable<String> => {
                             recordEvent({ kind: 'InitialEffectsCalled', initial });
@@ -63,7 +63,7 @@ describe("System", function () {
                                 })
                             );
                         }, defaultRetryStrategy())(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('abc', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('abc', {
                         a: 'Got 1',
                         b: 'Got 2',
                         c: 'Got 3'
@@ -95,7 +95,7 @@ describe("System", function () {
                     }, error).pipe(
                         track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) })
                     );
-                    let mutations = Feedbacks.reactWithLatest(
+                    let events = Feedbacks.reactWithLatest(
                         (state: TestChild[])  => state.map(element => ({ id: element.identifier, request: element })),
                         (initial: TestChild, state: Observable<TestChild>): Observable<String> => {
                         recordEvent({ kind: 'InitialEffectsCalled', initial });
@@ -107,7 +107,7 @@ describe("System", function () {
                             })
                         );
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('a|', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('a|', {
                         a: 'Got 1',
                     });
                 });
@@ -134,7 +134,7 @@ describe("System", function () {
                     }).pipe(
                         track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) })
                     );
-                    let mutations = Feedbacks.reactWithLatest(
+                    let events = Feedbacks.reactWithLatest(
                         (state: TestChild[])  => state.map(element => ({ id: element.identifier, request: element })),
                         (initial: TestChild, state: Observable<TestChild>): Observable<String> => {
                         recordEvent({ kind: 'InitialEffectsCalled', initial });
@@ -146,7 +146,7 @@ describe("System", function () {
                             })
                         );
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('a|', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('a|', {
                         a: 'Got 1',
                     });
                 });
@@ -173,7 +173,7 @@ describe("System", function () {
                         }).pipe(
                             track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) })
                         );
-                        let mutations = Feedbacks.reactWithLatest(
+                        let events = Feedbacks.reactWithLatest(
                             (state: TestChild[])  => state.map(element => ({ id: element.identifier, request: element })),
                             (initial: TestChild, state: Observable<TestChild>): Observable<String> => {
                             recordEvent({ kind: 'InitialEffectsCalled', initial });
@@ -190,7 +190,7 @@ describe("System", function () {
                                 })
                             );
                         }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('(ab)', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('(ab)', {
                         a: 'Got 1',
                         b: 'Got 2',
                     });
@@ -219,7 +219,7 @@ describe("System", function () {
                         }).pipe(
                             track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) })
                         );
-                        let mutations = Feedbacks.reactWithLatest(
+                        let events = Feedbacks.reactWithLatest(
                             (state: TestChild[])  => state.map(element => ({ id: element.identifier, request: element })),
                             (initial: TestChild, state: Observable<TestChild>): Observable<String> => {
                             recordEvent({ kind: 'InitialEffectsCalled', initial });
@@ -237,7 +237,7 @@ describe("System", function () {
                                 })
                             );
                         }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('(ab)', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('(ab)', {
                         a: 'Got 1',
                         b: 'Got 2'
                     });
@@ -267,7 +267,7 @@ describe("System", function () {
                         }).pipe(
                             track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) })
                         );
-                        let mutations = Feedbacks.reactWithLatest(
+                        let events = Feedbacks.reactWithLatest(
                             (state: TestChild[])  => state.map(element => ({ id: element.identifier, request: element })),
                             (initial: TestChild, state: Observable<TestChild>): Observable<String> => {
                             recordEvent({ kind: 'InitialEffectsCalled', initial });
@@ -284,7 +284,7 @@ describe("System", function () {
                                 })
                             );
                         }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('(ab)', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('(ab)', {
                         a: 'Got 1',
                         b: 'Got 2',
                     });
@@ -313,7 +313,7 @@ describe("System", function () {
                         }).pipe(
                             track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) })
                         );
-                        let mutations = Feedbacks.reactWithLatest(
+                        let events = Feedbacks.reactWithLatest(
                             (state: TestChild[])  => state.map(element => ({ id: element.identifier, request: element })),
                             (initial: TestChild, state: Observable<TestChild>): Observable<String> => {
                             recordEvent({ kind: 'InitialEffectsCalled', initial });
@@ -327,7 +327,7 @@ describe("System", function () {
                                 })
                             );
                         }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
-                    testScheduler.expectObservable(mutations, '^----!').toBe('(ab)c', {
+                    testScheduler.expectObservable(events, '^----!').toBe('(ab)c', {
                         a: 'Got 1',
                         b: 'Got 2',
                         c: 'Got 3'
@@ -363,7 +363,7 @@ describe("System", function () {
                         }).pipe(
                             track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) })
                         );
-                        let mutations = Feedbacks.react(
+                        let events = Feedbacks.react(
                             (state: TestChild[])  => state[0],
                             (initial: TestChild): Observable<String> => {
                             recordEvent({ kind: 'InitialEffectsCalled', initial });
@@ -374,7 +374,7 @@ describe("System", function () {
                                 })
                             );
                         }, defaultRetryStrategy())(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^---------!").toBe('a--bc', {
+                    testScheduler.expectObservable(events, "^---------!").toBe('a--bc', {
                         a: 'Got 1',
                         b: 'Got 3',
                         c: 'Got 4'
@@ -413,7 +413,7 @@ describe("System", function () {
                         }).pipe(
                             track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) })
                         );
-                        let mutations = Feedbacks.reactSet(
+                        let events = Feedbacks.reactSet(
                             (state: TestChild[]) => new Set(state),
                             (initial: TestChild): Observable<String> => {
                             recordEvent({ kind: 'InitialEffectsCalled', initial });
@@ -424,7 +424,7 @@ describe("System", function () {
                                 })
                             );
                         }, defaultRetryStrategy())(source, testScheduler);
-                    testScheduler.expectObservable(mutations, "^-------------------!").toBe('(ab)c-----d--e', {
+                    testScheduler.expectObservable(events, "^-------------------!").toBe('(ab)c-----d--e', {
                         a: 'Got 1',
                         b: 'Got 5',
                         c: 'Got 6',

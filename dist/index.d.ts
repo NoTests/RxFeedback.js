@@ -1,19 +1,19 @@
 import * as rx from "rxjs";
 import { SchedulerLike, MonoTypeOperatorFunction } from "rxjs";
 /**
- * Feedback loop transforming `State` into a sequence of `Mutation`s.
+ * Feedback loop transforming `State` into a sequence of `Event`s.
  */
-export declare type FeedbackLoop<State, Mutation> = (state: rx.Observable<State>, scheduler: SchedulerLike) => rx.Observable<Mutation>;
+export declare type FeedbackLoop<State, Event> = (state: rx.Observable<State>, scheduler: SchedulerLike) => rx.Observable<Event>;
 /**
- * Lifts feedback loop that operates on a subset of state and emits embeddable mutations to a parent feedback loop.
+ * Lifts feedback loop that operates on a subset of state and emits embeddable events to the parent feedback loop.
  *
  * @param loops Lifted feedback loops.
  * @param mappings State and event transformers.
  */
-export declare function liftFeedbackLoop<InnerState, InnerMutation, OuterState, OuterMutation>(loops: FeedbackLoop<InnerState, InnerMutation>[], mappings: {
+export declare function liftFeedbackLoop<InnerState, InnerEvent, OuterState, OuterEvent>(loops: FeedbackLoop<InnerState, InnerEvent>[], mappings: {
     mapState: (outerState: OuterState) => InnerState;
-    mapMutation: (outerMutation: InnerMutation) => OuterMutation;
-}): FeedbackLoop<OuterState, OuterMutation>;
+    mapEvent: (outerEvent: InnerEvent) => OuterEvent;
+}): FeedbackLoop<OuterState, OuterEvent>;
 /**
  * Single request sending state machine.
  */
@@ -74,14 +74,14 @@ export declare function isFailed<Request, SuccessResult, ErrorResult>(request: S
   The system simulation will be started upon subscription and stopped after subscription is disposed.
 
   System state is represented as a `State` parameter.
-  Mutations are represented by `Mutation` parameter.
+  Events are represented by the `Event` parameter.
 
  * @param initialState The initial state of the system.
- * @param reduce Calculates the new system state from the existing state and a transition mutation (system integrator, reducer).
- * @param feedback The feedback loops that produce mutations depending on the current system state.
+ * @param reduce Calculates the new system state from the existing state and a transition event (system integrator, reducer).
+ * @param feedback The feedback loops that produce events depending on the current system state.
  * @returns The current state of the system.
  */
-export declare function system<State, Mutation>(initialState: State, reduce: (state: State, event: Mutation) => State, feedback: Array<FeedbackLoop<State, Mutation>>): rx.Observable<State>;
+export declare function system<State, Event>(initialState: State, reduce: (state: State, event: Event) => State, feedback: Array<FeedbackLoop<State, Event>>): rx.Observable<State>;
 /**
  * Time interval in seconds.
  */
@@ -89,14 +89,14 @@ export declare type TimeIntervalInSeconds = number;
 /**
  * Configuration of commonly used retry strategies for feedback loop.
  */
-export declare type FeedbackRetryStrategy<Mutation> = {
+export declare type FeedbackRetryStrategy<Event> = {
     kind: "ignoreErrorJustComplete";
 } | {
     kind: "ignoreErrorAndReturn";
-    value: Mutation;
+    value: Event;
 } | {
     kind: "catchError";
-    handle: (error: {}) => Mutation;
+    handle: (error: {}) => Event;
 } | {
     kind: "exponentialBackoff";
     initialTimeout: TimeIntervalInSeconds;
@@ -105,7 +105,7 @@ export declare type FeedbackRetryStrategy<Mutation> = {
 /**
  * Default retry strategy for a feedback loop.
  */
-export declare function defaultRetryStrategy<Mutation>(): FeedbackRetryStrategy<Mutation>;
+export declare function defaultRetryStrategy<Event>(): FeedbackRetryStrategy<Event>;
 /**
  * Emits the unhandled error in a feedback loop that causes a retry strategy to activate.
  */
@@ -115,7 +115,7 @@ export declare let unhandledErrors: rx.Observable<Error>;
  *
  * @param strategy The strategy configuration.
  */
-export declare function materializedRetryStrategy<Mutation>(strategy: FeedbackRetryStrategy<Mutation>): MonoTypeOperatorFunction<Mutation>;
+export declare function materializedRetryStrategy<Event>(strategy: FeedbackRetryStrategy<Event>): MonoTypeOperatorFunction<Event>;
 export declare namespace Feedbacks {
     /**
      State: State type of the system.
@@ -131,7 +131,7 @@ export declare namespace Feedbacks {
      * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
-    function react<State, Request, Mutation>(request: (state: State) => Request | null, effects: (request: Request) => rx.Observable<Mutation>, retryStrategy: FeedbackRetryStrategy<Mutation>): FeedbackLoop<State, Mutation>;
+    function react<State, Request, Event>(request: (state: State) => Request | null, effects: (request: Request) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
     /**
      State: State type of the system.
      Request: Subset of state used to control the feedback loop.
@@ -146,7 +146,7 @@ export declare namespace Feedbacks {
      * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
-    function reactSet<State, Request, Mutation>(requests: (state: State) => Set<Request>, effects: (request: Request) => rx.Observable<Mutation>, retryStrategy: FeedbackRetryStrategy<Mutation>): FeedbackLoop<State, Mutation>;
+    function reactSet<State, Request, Event>(requests: (state: State) => Set<Request>, effects: (request: Request) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
     /**
      State: State type of the system.
      Request: Subset of state used to control the feedback loop.
@@ -160,8 +160,8 @@ export declare namespace Feedbacks {
      * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
-    function reactWithLatest<State, Request, Mutation>(request: (state: State) => {
+    function reactWithLatest<State, Request, Event>(request: (state: State) => {
         id: any;
         request: Request;
-    }[], effects: (initialRequest: Request, latestRequest: rx.Observable<Request>) => rx.Observable<Mutation>, retryStrategy: FeedbackRetryStrategy<Mutation>): FeedbackLoop<State, Mutation>;
+    }[], effects: (initialRequest: Request, latestRequest: rx.Observable<Request>) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
 }
