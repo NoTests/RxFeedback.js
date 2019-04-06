@@ -131,7 +131,7 @@ export declare namespace Feedbacks {
      * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
-    function react<State, Request, Event>(request: (state: State) => Request | null, effects: (request: Request) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
+    function react<State, Request, Event>(request: (state: State) => Request | null, effects: (request: Request, scheduler: SchedulerLike) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
     /**
      State: State type of the system.
      Request: Subset of state used to control the feedback loop.
@@ -146,7 +146,7 @@ export declare namespace Feedbacks {
      * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
-    function reactSet<State, Request, Event>(requests: (state: State) => Set<Request>, effects: (request: Request) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
+    function reactSet<State, Request, Event>(requests: (state: State) => Set<Request>, effects: (request: Request, scheduler: SchedulerLike) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
     /**
      State: State type of the system.
      Request: Subset of state used to control the feedback loop.
@@ -163,5 +163,5 @@ export declare namespace Feedbacks {
     function reactWithLatest<State, Request, Event>(request: (state: State) => {
         id: any;
         request: Request;
-    }[], effects: (initialRequest: Request, latestRequest: rx.Observable<Request>) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
+    }[], effects: (initialRequest: Request, latestRequest: rx.Observable<Request>, scheduler: SchedulerLike) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
 }

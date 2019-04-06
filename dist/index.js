@@ -237,7 +237,7 @@ var Feedbacks;
             return requestInstance != null
                 ? [{ id: requestInstance, request: requestInstance }]
                 : [];
-        }, function (request, _) { return effects(request); }, retryStrategy);
+        }, function (request, _, scheduler) { return effects(request, scheduler); }, retryStrategy);
     }
     Feedbacks.react = react;
     /**
@@ -262,7 +262,7 @@ var Feedbacks;
                 identifiableRequests.push({ id: request, request: request });
             });
             return identifiableRequests;
-        }, function (request, _) { return effects(request); }, retryStrategy);
+        }, function (request, _, scheduler) { return effects(request, scheduler); }, retryStrategy);
     }
     Feedbacks.reactSet = reactSet;
     /**
@@ -319,7 +319,7 @@ var Feedbacks;
                                 lifetimeIdentifier: lifetimeIdentifier_1,
                                 latestRequest: latestRequestSubject
                             };
-                            var requestsSubscription = effects(request, latestRequestSubject.asObservable())
+                            var requestsSubscription = effects(request, latestRequestSubject.asObservable(), scheduler)
                                 .pipe(observeOn_1.observeOn(scheduler), retryer)
                                 .subscribe(function (event) {
                                 var lifetime = state.lifetimeByIdentifier[requestID];

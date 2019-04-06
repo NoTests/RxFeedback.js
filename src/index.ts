@@ -328,7 +328,7 @@ export namespace Feedbacks {
    */
   export function react<State, Request, Event>(
     request: (state: State) => Request | null,
-    effects: (request: Request) => rx.Observable<Event>,
+    effects: (request: Request, scheduler: SchedulerLike) => rx.Observable<Event>,
     retryStrategy: FeedbackRetryStrategy<Event>
   ): FeedbackLoop<State, Event> {
     return reactWithLatest(
@@ -338,7 +338,7 @@ export namespace Feedbacks {
           ? [{ id: requestInstance, request: requestInstance }] 
           : []
       }, 
-      (request, _) => effects(request), 
+      (request, _, scheduler) => effects(request, scheduler), 
       retryStrategy
     );
   }
@@ -359,7 +359,7 @@ export namespace Feedbacks {
    */
   export function reactSet<State, Request, Event>(
     requests: (state: State) => Set<Request>,
-    effects: (request: Request) => rx.Observable<Event>,
+    effects: (request: Request, scheduler: SchedulerLike) => rx.Observable<Event>,
     retryStrategy: FeedbackRetryStrategy<Event>
   ): FeedbackLoop<State, Event> {
     return reactWithLatest(
@@ -371,7 +371,7 @@ export namespace Feedbacks {
         });
         return identifiableRequests;
       }, 
-      (request, _) => effects(request), 
+      (request, _, scheduler) => effects(request, scheduler), 
       retryStrategy
     ); 
   }
@@ -391,7 +391,7 @@ export namespace Feedbacks {
    */
   export function reactWithLatest<State, Request, Event>(
     request: (state: State) => { id: any, request: Request }[],
-    effects: (initialRequest: Request, latestRequest: rx.Observable<Request>) => rx.Observable<Event>,
+    effects: (initialRequest: Request, latestRequest: rx.Observable<Request>, scheduler: SchedulerLike) => rx.Observable<Event>,
     retryStrategy: FeedbackRetryStrategy<Event>
   ): FeedbackLoop<State, Event> {
     type RequestLifetimeTracking = {
@@ -444,7 +444,7 @@ export namespace Feedbacks {
                   lifetimeIdentifier: lifetimeIdentifier,
                   latestRequest: latestRequestSubject
                 };
-                let requestsSubscription = effects(request, latestRequestSubject.asObservable())
+                let requestsSubscription = effects(request, latestRequestSubject.asObservable(), scheduler)
                   .pipe(observeOn(scheduler), retryer)
                   .subscribe(event => {
                     const lifetime = state.lifetimeByIdentifier[requestID];
