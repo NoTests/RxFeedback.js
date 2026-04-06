@@ -4,7 +4,7 @@ export function unhandledCase(unhandled: never): never {
 
 function orderedStringify(obj: any) { 
   const allKeys: string[] = []; 
-  const distinct = { };
+  const distinct: { [key: string]: boolean } = { };
   JSON.stringify(obj, (k, v) => { 
     if (distinct[k] === undefined) {
       distinct[k] = true;
@@ -52,7 +52,7 @@ export function toArray<T>(original: Set<T>): T[] {
 var ObjectKeys = Object.keys;
 var ObjectHasOwnProperty = Object.prototype.hasOwnProperty;
 
-export function deepEqual(lhs: {}, rhs: {}) {
+export function deepEqual(lhs: any, rhs: any) {
   if (lhs === rhs) { return true; }
 
   if (!(lhs && rhs && typeof lhs == 'object' && typeof rhs == 'object')) {

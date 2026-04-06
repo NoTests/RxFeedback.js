@@ -1,29 +1,27 @@
 "use strict";
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-var rx = require("rxjs");
-var rxjs_1 = require("rxjs");
-var map_1 = require("rxjs/internal/operators/map");
-var scan_1 = require("rxjs/internal/operators/scan");
-var observeOn_1 = require("rxjs/internal/operators/observeOn");
-var subscribeOn_1 = require("rxjs/internal/operators/subscribeOn");
-var tap_1 = require("rxjs/internal/operators/tap");
-var startWith_1 = require("rxjs/internal/operators/startWith");
-var catchError_1 = require("rxjs/internal/operators/catchError");
-var delay_1 = require("rxjs/internal/operators/delay");
-var retryWhen_1 = require("rxjs/internal/operators/retryWhen");
-var switchMap_1 = require("rxjs/internal/operators/switchMap");
-var js_extensions_1 = require("./js+extensions");
+exports.Feedbacks = exports.unhandledErrors = exports.SingleRequest = void 0;
+exports.liftFeedbackLoop = liftFeedbackLoop;
+exports.isIdle = isIdle;
+exports.isTry = isTry;
+exports.isSuccess = isSuccess;
+exports.isFailed = isFailed;
+exports.system = system;
+exports.defaultRetryStrategy = defaultRetryStrategy;
+exports.materializedRetryStrategy = materializedRetryStrategy;
+const rx = require("rxjs");
+const rxjs_1 = require("rxjs");
+const map_1 = require("rxjs/internal/operators/map");
+const scan_1 = require("rxjs/internal/operators/scan");
+const observeOn_1 = require("rxjs/internal/operators/observeOn");
+const subscribeOn_1 = require("rxjs/internal/operators/subscribeOn");
+const tap_1 = require("rxjs/internal/operators/tap");
+const startWith_1 = require("rxjs/internal/operators/startWith");
+const catchError_1 = require("rxjs/internal/operators/catchError");
+const delay_1 = require("rxjs/internal/operators/delay");
+const retryWhen_1 = require("rxjs/internal/operators/retryWhen");
+const switchMap_1 = require("rxjs/internal/operators/switchMap");
+const js_extensions_1 = require("./js+extensions");
 /**
  * Lifts feedback loop that operates on a subset of state and emits embeddable events to the parent feedback loop.
  *
@@ -31,15 +29,12 @@ var js_extensions_1 = require("./js+extensions");
  * @param mappings State and event transformers.
  */
 function liftFeedbackLoop(loops, mappings) {
-    return function (outerState, scheduler) {
-        var embededLoops = loops.map(function (loop) {
-            return loop(outerState.pipe(map_1.map(mappings.mapState)), scheduler)
-                .pipe(map_1.map(mappings.mapEvent));
-        });
-        return rx.merge.apply(rx, embededLoops);
+    return (outerState, scheduler) => {
+        const embededLoops = loops.map(loop => loop(outerState.pipe((0, map_1.map)(mappings.mapState)), scheduler)
+            .pipe((0, map_1.map)(mappings.mapEvent)));
+        return rx.merge(...embededLoops);
     };
 }
-exports.liftFeedbackLoop = liftFeedbackLoop;
 var SingleRequest;
 (function (SingleRequest) {
     /**
@@ -73,7 +68,7 @@ var SingleRequest;
         return { kind: "failed", result: result };
     }
     SingleRequest.failed = failed;
-})(SingleRequest = exports.SingleRequest || (exports.SingleRequest = {}));
+})(SingleRequest || (exports.SingleRequest = SingleRequest = {}));
 /**
  * Is the sigle request in the idle state.
  * @param request The single request being tested.
@@ -81,7 +76,6 @@ var SingleRequest;
 function isIdle(request) {
     return request.kind === "idle";
 }
-exports.isIdle = isIdle;
 /**
  * Is the single request being attempted.
  * @param request The single request being tested.
@@ -92,7 +86,6 @@ function isTry(request) {
     }
     return null;
 }
-exports.isTry = isTry;
 /**
  * Is the single request successfully executed.
  * @param request Is the single request successfully executed.
@@ -103,7 +96,6 @@ function isSuccess(request) {
     }
     return null;
 }
-exports.isSuccess = isSuccess;
 /**
  * Did the request execution fail.
  * @param request Did the request execution fail.
@@ -114,7 +106,6 @@ function isFailed(request) {
     }
     return null;
 }
-exports.isFailed = isFailed;
 /**
   The system simulation will be started upon subscription and stopped after subscription is disposed.
 
@@ -127,26 +118,26 @@ exports.isFailed = isFailed;
  * @returns The current state of the system.
  */
 function system(initialState, reduce, feedback) {
-    return rx.defer(function () {
-        var state = new rx.ReplaySubject(1);
-        var scheduler = rx.queueScheduler;
-        var events = feedback.map(function (x) { return x(state, scheduler); });
-        var mergedEvent = rx.merge.apply(rx, events).pipe(observeOn_1.observeOn(scheduler));
-        var eventsWithEffects = mergedEvent
-            .pipe(scan_1.scan(reduce, initialState), tap_1.tap(function (x) {
+    return rx.defer(() => {
+        const state = new rx.ReplaySubject(1);
+        const scheduler = rx.queueScheduler;
+        const events = feedback.map(x => x(state, scheduler));
+        const mergedEvent = rx.merge(...events).pipe((0, observeOn_1.observeOn)(scheduler));
+        const eventsWithEffects = mergedEvent
+            .pipe((0, scan_1.scan)(reduce, initialState), (0, tap_1.tap)(x => {
             state.next(x);
-        }), subscribeOn_1.subscribeOn(scheduler), startWith_1.startWith(initialState), observeOn_1.observeOn(scheduler));
-        var hackOnSubscribed = rx.defer(function () {
+        }), (0, subscribeOn_1.subscribeOn)(scheduler), (0, startWith_1.startWith)(initialState), (0, observeOn_1.observeOn)(scheduler));
+        const hackOnSubscribed = rx.defer(() => {
             state.next(initialState);
             return rx.empty();
         });
-        return rx.merge.apply(rx, [eventsWithEffects, hackOnSubscribed]).pipe(catchError_1.catchError(function (e) {
+        return rx.merge(...[eventsWithEffects, hackOnSubscribed])
+            .pipe((0, catchError_1.catchError)(e => {
             dispatchError(e);
             return rx.throwError(e);
         }));
     });
 }
-exports.system = system;
 /**
  * Default retry strategy for a feedback loop.
  */
@@ -157,8 +148,7 @@ function defaultRetryStrategy() {
         maxBackoffFactor: 8
     };
 }
-exports.defaultRetryStrategy = defaultRetryStrategy;
-var dispatchErrors = new rx.Subject();
+let dispatchErrors = new rx.Subject();
 function dispatchError(error) {
     if (error instanceof Error || error.constructor === Error) {
         dispatchErrors.next(error);
@@ -176,45 +166,42 @@ exports.unhandledErrors = dispatchErrors;
  * @param strategy The strategy configuration.
  */
 function materializedRetryStrategy(strategy) {
-    return function (source) {
+    return (source) => {
         switch (strategy.kind) {
             case "ignoreErrorJustComplete":
-                return source.pipe(catchError_1.catchError(function (e) {
+                return source.pipe((0, catchError_1.catchError)(e => {
                     dispatchError(e);
                     return rx.empty();
                 }));
             case "ignoreErrorAndReturn":
-                return source.pipe(catchError_1.catchError(function (e) {
+                return source.pipe((0, catchError_1.catchError)(e => {
                     dispatchError(e);
                     return rx.of(strategy.value);
                 }));
             case "exponentialBackoff":
-                return rx.defer(function () {
-                    var counter = 1;
-                    return source.pipe(tap_1.tap(function () {
+                return rx.defer(() => {
+                    let counter = 1;
+                    return source.pipe((0, tap_1.tap)(() => {
                         counter = 1;
-                    }, function () {
+                    }, () => {
                         if (counter * 2 <= strategy.maxBackoffFactor) {
                             counter *= 2;
                         }
-                    }), retryWhen_1.retryWhen(function (e) {
-                        return e.pipe(switchMap_1.switchMap(function (x) {
-                            dispatchError(x);
-                            return rx.of(0).pipe(delay_1.delay(strategy.initialTimeout * counter * 1000));
-                        }));
-                    }));
+                    }), (0, retryWhen_1.retryWhen)(e => e.pipe((0, switchMap_1.switchMap)(x => {
+                        dispatchError(x);
+                        return rx.of(0).pipe((0, delay_1.delay)(strategy.initialTimeout * counter * 1000));
+                    }))));
                 });
             case "catchError":
-                return source.pipe(catchError_1.catchError(function (e) {
+                return source.pipe((0, catchError_1.catchError)(e => {
                     dispatchError(e);
                     return rx.of(strategy.handle(e));
                 }));
             default:
-                return js_extensions_1.unhandledCase(strategy);
+                return (0, js_extensions_1.unhandledCase)(strategy);
         }
     };
 }
-exports.materializedRetryStrategy = materializedRetryStrategy;
 var Feedbacks;
 (function (Feedbacks) {
     /**
@@ -232,12 +219,12 @@ var Feedbacks;
      * @returns The feedback loop performing the effects.
      */
     function react(request, effects, retryStrategy) {
-        return reactWithLatest(function (state) {
-            var requestInstance = request(state);
+        return reactWithLatest(state => {
+            const requestInstance = request(state);
             return requestInstance != null
                 ? [{ id: requestInstance, request: requestInstance }]
                 : [];
-        }, function (request, _, scheduler) { return effects(request, scheduler); }, retryStrategy);
+        }, (request, _, scheduler) => effects(request, scheduler), retryStrategy);
     }
     Feedbacks.react = react;
     /**
@@ -255,14 +242,14 @@ var Feedbacks;
      * @returns The feedback loop performing the effects.
      */
     function reactSet(requests, effects, retryStrategy) {
-        return reactWithLatest(function (state) {
-            var requestInstances = requests(state);
-            var identifiableRequests = [];
-            requestInstances.forEach(function (request) {
+        return reactWithLatest(state => {
+            const requestInstances = requests(state);
+            const identifiableRequests = [];
+            requestInstances.forEach(request => {
                 identifiableRequests.push({ id: request, request: request });
             });
             return identifiableRequests;
-        }, function (request, _, scheduler) { return effects(request, scheduler); }, retryStrategy);
+        }, (request, _, scheduler) => effects(request, scheduler), retryStrategy);
     }
     Feedbacks.reactSet = reactSet;
     /**
@@ -279,60 +266,60 @@ var Feedbacks;
      * @returns The feedback loop performing the effects.
      */
     function reactWithLatest(request, effects, retryStrategy) {
-        var retryer = materializedRetryStrategy(retryStrategy);
-        return function (state, scheduler) {
-            var events = new rx.Observable(function (observer) {
-                var requestLifetimeTracker = {
+        const retryer = materializedRetryStrategy(retryStrategy);
+        return (state, scheduler) => {
+            const events = new rx.Observable((observer) => {
+                let requestLifetimeTracker = {
                     isUnsubscribed: false,
                     lifetimeByIdentifier: {}
                 };
                 function unsubscribe() {
                     requestLifetimeTracker.isUnsubscribed = true;
-                    var inFlightRequests = requestLifetimeTracker.lifetimeByIdentifier;
+                    const inFlightRequests = requestLifetimeTracker.lifetimeByIdentifier;
                     requestLifetimeTracker.lifetimeByIdentifier = {};
-                    Object.keys(inFlightRequests).forEach(function (key) { inFlightRequests[key].subscription.unsubscribe(); });
+                    Object.keys(inFlightRequests).forEach(key => { inFlightRequests[key].subscription.unsubscribe(); });
                 }
-                var subscription = state.pipe(map_1.map(request))
-                    .subscribe(function (requests) {
-                    var state = requestLifetimeTracker;
+                let subscription = state.pipe((0, map_1.map)(request))
+                    .subscribe(requests => {
+                    const state = requestLifetimeTracker;
                     if (state.isUnsubscribed) {
                         return;
                     }
-                    var lifetimeToUnsubscribeByIdentifier = __assign({}, state.lifetimeByIdentifier);
-                    requests.forEach(function (indexedRequest) {
-                        var requestID = js_extensions_1.canonicalString(indexedRequest.id);
-                        var request = indexedRequest.request;
-                        var requestLifetime = state.lifetimeByIdentifier[requestID];
+                    let lifetimeToUnsubscribeByIdentifier = Object.assign({}, state.lifetimeByIdentifier);
+                    requests.forEach(indexedRequest => {
+                        const requestID = (0, js_extensions_1.canonicalString)(indexedRequest.id);
+                        const request = indexedRequest.request;
+                        let requestLifetime = state.lifetimeByIdentifier[requestID];
                         if (requestLifetime) {
                             delete lifetimeToUnsubscribeByIdentifier[requestID];
-                            if (js_extensions_1.deepEqual(requestLifetime.latestRequest.value, request)) {
+                            if ((0, js_extensions_1.deepEqual)(requestLifetime.latestRequest.value, request)) {
                                 return;
                             }
                             requestLifetime.latestRequest.next(request);
                         }
                         else {
-                            var subscription_1 = new rx.Subscription();
-                            var latestRequestSubject = new rxjs_1.BehaviorSubject(request);
-                            var lifetimeIdentifier_1 = {};
+                            let subscription = new rx.Subscription();
+                            let latestRequestSubject = new rxjs_1.BehaviorSubject(request);
+                            let lifetimeIdentifier = {};
                             state.lifetimeByIdentifier[requestID] = {
-                                subscription: subscription_1,
-                                lifetimeIdentifier: lifetimeIdentifier_1,
+                                subscription: subscription,
+                                lifetimeIdentifier: lifetimeIdentifier,
                                 latestRequest: latestRequestSubject
                             };
-                            var requestsSubscription = effects(request, latestRequestSubject.asObservable(), scheduler)
-                                .pipe(observeOn_1.observeOn(scheduler), retryer)
-                                .subscribe(function (event) {
-                                var lifetime = state.lifetimeByIdentifier[requestID];
-                                if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier_1)) {
+                            let requestsSubscription = effects(request, latestRequestSubject.asObservable(), scheduler)
+                                .pipe((0, observeOn_1.observeOn)(scheduler), retryer)
+                                .subscribe(event => {
+                                const lifetime = state.lifetimeByIdentifier[requestID];
+                                if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier)) {
                                     return;
                                 }
                                 if (state.isUnsubscribed) {
                                     return;
                                 }
                                 observer.next(event);
-                            }, function (error) {
-                                var lifetime = state.lifetimeByIdentifier[requestID];
-                                if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier_1)) {
+                            }, error => {
+                                const lifetime = state.lifetimeByIdentifier[requestID];
+                                if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier)) {
                                     return;
                                 }
                                 if (state.isUnsubscribed) {
@@ -340,27 +327,27 @@ var Feedbacks;
                                 }
                                 observer.error(error);
                             });
-                            subscription_1.add(requestsSubscription);
+                            subscription.add(requestsSubscription);
                         }
                     });
-                    var allUnsubscribeKeys = Object.keys(lifetimeToUnsubscribeByIdentifier);
-                    allUnsubscribeKeys.forEach(function (key) {
+                    const allUnsubscribeKeys = Object.keys(lifetimeToUnsubscribeByIdentifier);
+                    allUnsubscribeKeys.forEach(key => {
                         if (state.lifetimeByIdentifier[key]
                             && state.lifetimeByIdentifier[key].lifetimeIdentifier === lifetimeToUnsubscribeByIdentifier[key].lifetimeIdentifier) {
                             delete state.lifetimeByIdentifier[key];
                         }
                         lifetimeToUnsubscribeByIdentifier[key].subscription.unsubscribe();
                     });
-                }, function (error) {
-                    var state = requestLifetimeTracker;
+                }, error => {
+                    const state = requestLifetimeTracker;
                     if (state.isUnsubscribed) {
                         return;
                     }
                     observer.error(error);
-                }, function () {
+                }, () => {
                     observer.complete();
                 });
-                return new rx.Subscription(function () {
+                return new rx.Subscription(() => {
                     unsubscribe();
                     subscription.unsubscribe();
                 });
@@ -369,5 +356,5 @@ var Feedbacks;
         };
     }
     Feedbacks.reactWithLatest = reactWithLatest;
-})(Feedbacks = exports.Feedbacks || (exports.Feedbacks = {}));
+})(Feedbacks || (exports.Feedbacks = Feedbacks = {}));
 //# sourceMappingURL=index.js.map

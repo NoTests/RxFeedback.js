@@ -1,12 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-var testing_1 = require("rxjs/testing");
-var chai_1 = require("chai");
-var rxjs_1 = require("rxjs");
-var map_1 = require("rxjs/internal/operators/map");
-var dematerialize_1 = require("rxjs/internal/operators/dematerialize");
-var __1 = require("..");
-var js_extensions_1 = require("../js+extensions");
+const testing_1 = require("rxjs/testing");
+const chai_1 = require("chai");
+const rxjs_1 = require("rxjs");
+const map_1 = require("rxjs/internal/operators/map");
+const dematerialize_1 = require("rxjs/internal/operators/dematerialize");
+const __1 = require("..");
+const js_extensions_1 = require("../js+extensions");
 describe("System", function () {
     function createRecorder(scheduler) {
         var recordedEvents = [];
@@ -18,29 +18,29 @@ describe("System", function () {
     describe("Feedback", function () {
         describe("reactWithLatest", function () {
             it("Subscription", function () {
-                var testScheduler = new testing_1.TestScheduler(assertDeepEqual);
-                var _a = createRecorder(testScheduler), recordedEvents = _a[0], recordEvent = _a[1];
-                testScheduler.run(function () {
-                    var source = testScheduler.createColdObservable('abcd', {
+                const testScheduler = new testing_1.TestScheduler(assertDeepEqual);
+                const [recordedEvents, recordEvent] = createRecorder(testScheduler);
+                testScheduler.run(() => {
+                    let source = testScheduler.createColdObservable('abcd', {
                         'a': [{ identifier: 0, value: '1' }],
                         'b': [{ identifier: 0, value: '2' }],
                         'c': [{ identifier: 0, value: '2' }, { identifier: 1, value: '3' }],
                         'd': [{ identifier: 1, value: '3' }]
-                    }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
-                        recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
-                        return state.pipe(map_1.map(function (test) { return "Got " + test.value; }), track({
-                            onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
-                            onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
+                    }).pipe(track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) }));
+                    let events = __1.Feedbacks.reactWithLatest((state) => state.map(element => ({ id: element.identifier, request: element })), (initial, state) => {
+                        recordEvent({ kind: 'InitialEffectsCalled', initial });
+                        return state.pipe((0, map_1.map)(test => `Got ${test.value}`), track({
+                            onSubscribed: () => recordEvent({ kind: 'Subscribed', id: initial.identifier }),
+                            onDispose: () => recordEvent({ kind: 'Disposed', id: initial.identifier })
                         }));
-                    }, __1.defaultRetryStrategy())(source, testScheduler);
+                    }, (0, __1.defaultRetryStrategy)())(source, testScheduler);
                     testScheduler.expectObservable(events, "^---------!").toBe('abc', {
                         a: 'Got 1',
                         b: 'Got 2',
                         c: 'Got 3'
                     });
                 });
-                chai_1.expect(recordedEvents).to.deep.equal([
+                (0, chai_1.expect)(recordedEvents).to.deep.equal([
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 0, value: '1' } } },
                     { frame: 0, event: { kind: 'Subscribed', id: 0 } },
                     { frame: 2, event: { kind: 'InitialEffectsCalled', initial: { identifier: 1, value: '3' } } },
@@ -51,28 +51,28 @@ describe("System", function () {
                 ]);
             });
             it('Error', function () {
-                var testScheduler = new testing_1.TestScheduler(assertDeepEqual);
-                var _a = createRecorder(testScheduler), recordedEvents = _a[0], recordEvent = _a[1];
-                testScheduler.run(function () {
-                    var error = 'This is error';
-                    var source = testScheduler.createColdObservable('a#cd', {
+                const testScheduler = new testing_1.TestScheduler(assertDeepEqual);
+                const [recordedEvents, recordEvent] = createRecorder(testScheduler);
+                testScheduler.run(() => {
+                    const error = 'This is error';
+                    let source = testScheduler.createColdObservable('a#cd', {
                         'a': [{ identifier: 0, value: '1' }],
                         'b': [{ identifier: 0, value: '2' }],
                         'c': [{ identifier: 0, value: '2' }, { identifier: 1, value: '3' }],
                         'd': [{ identifier: 1, value: '3' }]
-                    }, error).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
-                        recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
-                        return state.pipe(map_1.map(function (test) { return "Got " + test.value; }), track({
-                            onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
-                            onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
+                    }, error).pipe(track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) }));
+                    let events = __1.Feedbacks.reactWithLatest((state) => state.map(element => ({ id: element.identifier, request: element })), (initial, state) => {
+                        recordEvent({ kind: 'InitialEffectsCalled', initial });
+                        return state.pipe((0, map_1.map)(test => `Got ${test.value}`), track({
+                            onSubscribed: () => recordEvent({ kind: 'Subscribed', id: initial.identifier }),
+                            onDispose: () => recordEvent({ kind: 'Disposed', id: initial.identifier })
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
                     testScheduler.expectObservable(events, "^---------!").toBe('a|', {
                         a: 'Got 1',
                     });
                 });
-                chai_1.expect(recordedEvents).to.deep.equal([
+                (0, chai_1.expect)(recordedEvents).to.deep.equal([
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 0, value: '1' } } },
                     { frame: 0, event: { kind: 'Subscribed', id: 0 } },
                     { frame: 1, event: { kind: 'Disposed', id: 0 } },
@@ -80,27 +80,27 @@ describe("System", function () {
                 ]);
             });
             it('Completed', function () {
-                var testScheduler = new testing_1.TestScheduler(assertDeepEqual);
-                var _a = createRecorder(testScheduler), recordedEvents = _a[0], recordEvent = _a[1];
-                testScheduler.run(function () {
-                    var source = testScheduler.createColdObservable('a|cd', {
+                const testScheduler = new testing_1.TestScheduler(assertDeepEqual);
+                const [recordedEvents, recordEvent] = createRecorder(testScheduler);
+                testScheduler.run(() => {
+                    let source = testScheduler.createColdObservable('a|cd', {
                         'a': [{ identifier: 0, value: '1' }],
                         'b': [{ identifier: 0, value: '2' }],
                         'c': [{ identifier: 0, value: '2' }, { identifier: 1, value: '3' }],
                         'd': [{ identifier: 1, value: '3' }]
-                    }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
-                        recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
-                        return state.pipe(map_1.map(function (test) { return "Got " + test.value; }), track({
-                            onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
-                            onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
+                    }).pipe(track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) }));
+                    let events = __1.Feedbacks.reactWithLatest((state) => state.map(element => ({ id: element.identifier, request: element })), (initial, state) => {
+                        recordEvent({ kind: 'InitialEffectsCalled', initial });
+                        return state.pipe((0, map_1.map)(test => `Got ${test.value}`), track({
+                            onSubscribed: () => recordEvent({ kind: 'Subscribed', id: initial.identifier }),
+                            onDispose: () => recordEvent({ kind: 'Disposed', id: initial.identifier })
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
                     testScheduler.expectObservable(events, "^---------!").toBe('a|', {
                         a: 'Got 1',
                     });
                 });
-                chai_1.expect(recordedEvents).to.deep.equal([
+                (0, chai_1.expect)(recordedEvents).to.deep.equal([
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 0, value: '1' } } },
                     { frame: 0, event: { kind: 'Subscribed', id: 0 } },
                     { frame: 1, event: { kind: 'Disposed', id: 0 } },
@@ -108,25 +108,25 @@ describe("System", function () {
                 ]);
             });
             it("Request Error", function () {
-                var testScheduler = new testing_1.TestScheduler(assertDeepEqual);
-                var _a = createRecorder(testScheduler), recordedEvents = _a[0], recordEvent = _a[1];
-                testScheduler.run(function () {
-                    var error = new Error();
-                    var source = testScheduler.createColdObservable('abc', {
+                const testScheduler = new testing_1.TestScheduler(assertDeepEqual);
+                const [recordedEvents, recordEvent] = createRecorder(testScheduler);
+                testScheduler.run(() => {
+                    const error = new Error();
+                    let source = testScheduler.createColdObservable('abc', {
                         'a': [{ identifier: 0, value: '1' }, { identifier: 1, value: '2' }],
                         'b': [{ identifier: 0, value: '3' }, { identifier: 1, value: '2' }],
                         'c': [{ identifier: 0, value: '4' }, { identifier: 1, value: '2' }],
-                    }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
-                        recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
-                        return state.pipe(map_1.map(function (test) {
+                    }).pipe(track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) }));
+                    let events = __1.Feedbacks.reactWithLatest((state) => state.map(element => ({ id: element.identifier, request: element })), (initial, state) => {
+                        recordEvent({ kind: 'InitialEffectsCalled', initial });
+                        return state.pipe((0, map_1.map)(test => {
                             if (test.value == '3') {
                                 throw error;
                             }
-                            return "Got " + test.value;
+                            return `Got ${test.value}`;
                         }), track({
-                            onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
-                            onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
+                            onSubscribed: () => recordEvent({ kind: 'Subscribed', id: initial.identifier }),
+                            onDispose: () => recordEvent({ kind: 'Disposed', id: initial.identifier })
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
                     testScheduler.expectObservable(events, "^---------!").toBe('(ab)', {
@@ -134,7 +134,7 @@ describe("System", function () {
                         b: 'Got 2',
                     });
                 });
-                chai_1.expect(recordedEvents).to.deep.equal([
+                (0, chai_1.expect)(recordedEvents).to.deep.equal([
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 0, value: '1' } } },
                     { frame: 0, event: { kind: 'Subscribed', id: 0 } },
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 1, value: '2' } } },
@@ -145,24 +145,24 @@ describe("System", function () {
                 ]);
             });
             it("Request Completed", function () {
-                var testScheduler = new testing_1.TestScheduler(assertDeepEqual);
-                var _a = createRecorder(testScheduler), recordedEvents = _a[0], recordEvent = _a[1];
-                testScheduler.run(function () {
-                    var source = testScheduler.createColdObservable('abc', {
+                const testScheduler = new testing_1.TestScheduler(assertDeepEqual);
+                const [recordedEvents, recordEvent] = createRecorder(testScheduler);
+                testScheduler.run(() => {
+                    let source = testScheduler.createColdObservable('abc', {
                         'a': [{ identifier: 0, value: '1' }, { identifier: 1, value: '2' }],
                         'b': [{ identifier: 0, value: '3' }, { identifier: 1, value: '2' }],
                         'c': [{ identifier: 0, value: '4' }, { identifier: 1, value: '2' }],
-                    }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
-                        recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
-                        return state.pipe(map_1.map(function (test) {
+                    }).pipe(track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) }));
+                    let events = __1.Feedbacks.reactWithLatest((state) => state.map(element => ({ id: element.identifier, request: element })), (initial, state) => {
+                        recordEvent({ kind: 'InitialEffectsCalled', initial });
+                        return state.pipe((0, map_1.map)((test) => {
                             if (test.value == '3') {
-                                return rxjs_1.Notification.createComplete();
+                                return { kind: 'C' };
                             }
-                            return rxjs_1.Notification.createNext("Got " + test.value);
-                        }), dematerialize_1.dematerialize(), track({
-                            onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
-                            onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
+                            return { kind: 'N', value: `Got ${test.value}` };
+                        }), (0, dematerialize_1.dematerialize)(), track({
+                            onSubscribed: () => recordEvent({ kind: 'Subscribed', id: initial.identifier }),
+                            onDispose: () => recordEvent({ kind: 'Disposed', id: initial.identifier })
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
                     testScheduler.expectObservable(events, "^---------!").toBe('(ab)', {
@@ -170,7 +170,7 @@ describe("System", function () {
                         b: 'Got 2'
                     });
                 });
-                chai_1.expect(recordedEvents).to.deep.equal([
+                (0, chai_1.expect)(recordedEvents).to.deep.equal([
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 0, value: '1' } } },
                     { frame: 0, event: { kind: 'Subscribed', id: 0 } },
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 1, value: '2' } } },
@@ -181,25 +181,25 @@ describe("System", function () {
                 ]);
             });
             it("Request Error", function () {
-                var testScheduler = new testing_1.TestScheduler(assertDeepEqual);
-                var _a = createRecorder(testScheduler), recordedEvents = _a[0], recordEvent = _a[1];
-                testScheduler.run(function () {
-                    var error = new Error();
-                    var source = testScheduler.createColdObservable('abc', {
+                const testScheduler = new testing_1.TestScheduler(assertDeepEqual);
+                const [recordedEvents, recordEvent] = createRecorder(testScheduler);
+                testScheduler.run(() => {
+                    const error = new Error();
+                    let source = testScheduler.createColdObservable('abc', {
                         'a': [{ identifier: 0, value: '1' }, { identifier: 1, value: '2' }],
                         'b': [{ identifier: 0, value: '3' }, { identifier: 1, value: '2' }],
                         'c': [{ identifier: 0, value: '4' }, { identifier: 1, value: '2' }],
-                    }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
-                        recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
-                        return state.pipe(map_1.map(function (test) {
+                    }).pipe(track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) }));
+                    let events = __1.Feedbacks.reactWithLatest((state) => state.map(element => ({ id: element.identifier, request: element })), (initial, state) => {
+                        recordEvent({ kind: 'InitialEffectsCalled', initial });
+                        return state.pipe((0, map_1.map)(test => {
                             if (test.value == '3') {
                                 throw error;
                             }
-                            return "Got " + test.value;
+                            return `Got ${test.value}`;
                         }), track({
-                            onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
-                            onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
+                            onSubscribed: () => recordEvent({ kind: 'Subscribed', id: initial.identifier }),
+                            onDispose: () => recordEvent({ kind: 'Disposed', id: initial.identifier })
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
                     testScheduler.expectObservable(events, "^---------!").toBe('(ab)', {
@@ -207,7 +207,7 @@ describe("System", function () {
                         b: 'Got 2',
                     });
                 });
-                chai_1.expect(recordedEvents).to.deep.equal([
+                (0, chai_1.expect)(recordedEvents).to.deep.equal([
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 0, value: '1' } } },
                     { frame: 0, event: { kind: 'Subscribed', id: 0 } },
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 1, value: '2' } } },
@@ -218,21 +218,21 @@ describe("System", function () {
                 ]);
             });
             it("Unsubscribe", function () {
-                var testScheduler = new testing_1.TestScheduler(assertDeepEqual);
-                var _a = createRecorder(testScheduler), recordedEvents = _a[0], recordEvent = _a[1];
-                testScheduler.run(function () {
-                    var source = testScheduler.createColdObservable('a---bc', {
+                const testScheduler = new testing_1.TestScheduler(assertDeepEqual);
+                const [recordedEvents, recordEvent] = createRecorder(testScheduler);
+                testScheduler.run(() => {
+                    let source = testScheduler.createColdObservable('a---bc', {
                         'a': [{ identifier: 0, value: '1' }, { identifier: 1, value: '2' }],
                         'b': [{ identifier: 0, value: '3' }, { identifier: 1, value: '2' }],
                         'c': [{ identifier: 0, value: '4' }, { identifier: 1, value: '2' }],
-                    }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var events = __1.Feedbacks.reactWithLatest(function (state) { return state.map(function (element) { return ({ id: element.identifier, request: element }); }); }, function (initial, state) {
-                        recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
-                        return state.pipe(map_1.map(function (test) {
-                            return "Got " + test.value;
+                    }).pipe(track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) }));
+                    let events = __1.Feedbacks.reactWithLatest((state) => state.map(element => ({ id: element.identifier, request: element })), (initial, state) => {
+                        recordEvent({ kind: 'InitialEffectsCalled', initial });
+                        return state.pipe((0, map_1.map)((test) => {
+                            return `Got ${test.value}`;
                         }), track({
-                            onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
-                            onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
+                            onSubscribed: () => recordEvent({ kind: 'Subscribed', id: initial.identifier }),
+                            onDispose: () => recordEvent({ kind: 'Disposed', id: initial.identifier })
                         }));
                     }, { kind: "ignoreErrorJustComplete" })(source, testScheduler);
                     testScheduler.expectObservable(events, '^----!').toBe('(ab)c', {
@@ -241,7 +241,7 @@ describe("System", function () {
                         c: 'Got 3'
                     });
                 });
-                chai_1.expect(recordedEvents).to.deep.equal([
+                (0, chai_1.expect)(recordedEvents).to.deep.equal([
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 0, value: '1' } } },
                     { frame: 0, event: { kind: 'Subscribed', id: 0 } },
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 1, value: '2' } } },
@@ -254,31 +254,31 @@ describe("System", function () {
         });
         describe("react", function () {
             it("Subscription", function () {
-                var testScheduler = new testing_1.TestScheduler(assertDeepEqual);
-                var _a = createRecorder(testScheduler), recordedEvents = _a[0], recordEvent = _a[1];
-                var never = rxjs_1.NEVER.pipe(map_1.map(function (_) { return 'Should not happen'; }));
-                testScheduler.run(function () {
-                    var source = testScheduler.createColdObservable('abcde', {
+                const testScheduler = new testing_1.TestScheduler(assertDeepEqual);
+                const [recordedEvents, recordEvent] = createRecorder(testScheduler);
+                const never = rxjs_1.NEVER.pipe((0, map_1.map)(_ => 'Should not happen'));
+                testScheduler.run(() => {
+                    let source = testScheduler.createColdObservable('abcde', {
                         'a': [{ identifier: 0, value: '1' }],
                         'b': [{ identifier: 0, value: '1' }],
                         'c': [],
                         'd': [{ identifier: 0, value: '3' }],
                         'e': [{ identifier: 1, value: '4' }]
-                    }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var events = __1.Feedbacks.react(function (state) { return state[0]; }, function (initial) {
-                        recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
-                        return rxjs_1.concat(rxjs_1.of("Got " + initial.value), never).pipe(track({
-                            onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
-                            onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
+                    }).pipe(track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) }));
+                    let events = __1.Feedbacks.react((state) => state[0], (initial) => {
+                        recordEvent({ kind: 'InitialEffectsCalled', initial });
+                        return (0, rxjs_1.concat)((0, rxjs_1.of)(`Got ${initial.value}`), never).pipe(track({
+                            onSubscribed: () => recordEvent({ kind: 'Subscribed', id: initial.identifier }),
+                            onDispose: () => recordEvent({ kind: 'Disposed', id: initial.identifier })
                         }));
-                    }, __1.defaultRetryStrategy())(source, testScheduler);
+                    }, (0, __1.defaultRetryStrategy)())(source, testScheduler);
                     testScheduler.expectObservable(events, "^---------!").toBe('a--bc', {
                         a: 'Got 1',
                         b: 'Got 3',
                         c: 'Got 4'
                     });
                 });
-                chai_1.expect(recordedEvents).to.deep.equal([
+                (0, chai_1.expect)(recordedEvents).to.deep.equal([
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 0, value: '1' } } },
                     { frame: 0, event: { kind: 'Subscribed', id: 0 } },
                     { frame: 2, event: { kind: 'Disposed', id: 0 } },
@@ -294,24 +294,24 @@ describe("System", function () {
         });
         describe("reactSet", function () {
             it("Subscription", function () {
-                var testScheduler = new testing_1.TestScheduler(assertDeepEqual);
-                var _a = createRecorder(testScheduler), recordedEvents = _a[0], recordEvent = _a[1];
-                var never = rxjs_1.NEVER.pipe(map_1.map(function (_) { return 'Should not happen'; }));
-                testScheduler.run(function () {
-                    var source = testScheduler.createColdObservable('a---b--c--d--e', {
+                const testScheduler = new testing_1.TestScheduler(assertDeepEqual);
+                const [recordedEvents, recordEvent] = createRecorder(testScheduler);
+                const never = rxjs_1.NEVER.pipe((0, map_1.map)(_ => 'Should not happen'));
+                testScheduler.run(() => {
+                    let source = testScheduler.createColdObservable('a---b--c--d--e', {
                         'a': [{ identifier: 0, value: '1' }, { identifier: 2, value: '5' }],
                         'b': [{ identifier: 0, value: '1' }, { identifier: 2, value: '6' }],
                         'c': [{ identifier: 2, value: '6' }],
                         'd': [{ identifier: 0, value: '3' }, { identifier: 2, value: '6' }],
                         'e': [{ identifier: 3, value: '5' }]
-                    }).pipe(track({ onDispose: function () { return recordEvent({ kind: 'DisposedSource' }); } }));
-                    var events = __1.Feedbacks.reactSet(function (state) { return new Set(state); }, function (initial) {
-                        recordEvent({ kind: 'InitialEffectsCalled', initial: initial });
-                        return rxjs_1.concat(rxjs_1.of("Got " + initial.value), never).pipe(track({
-                            onSubscribed: function () { return recordEvent({ kind: 'Subscribed', id: initial.identifier }); },
-                            onDispose: function () { return recordEvent({ kind: 'Disposed', id: initial.identifier }); }
+                    }).pipe(track({ onDispose: () => recordEvent({ kind: 'DisposedSource' }) }));
+                    let events = __1.Feedbacks.reactSet((state) => new Set(state), (initial) => {
+                        recordEvent({ kind: 'InitialEffectsCalled', initial });
+                        return (0, rxjs_1.concat)((0, rxjs_1.of)(`Got ${initial.value}`), never).pipe(track({
+                            onSubscribed: () => recordEvent({ kind: 'Subscribed', id: initial.identifier }),
+                            onDispose: () => recordEvent({ kind: 'Disposed', id: initial.identifier })
                         }));
-                    }, __1.defaultRetryStrategy())(source, testScheduler);
+                    }, (0, __1.defaultRetryStrategy)())(source, testScheduler);
                     testScheduler.expectObservable(events, "^-------------------!").toBe('(ab)c-----d--e', {
                         a: 'Got 1',
                         b: 'Got 5',
@@ -320,7 +320,7 @@ describe("System", function () {
                         e: 'Got 5'
                     });
                 });
-                var orderDeterministic1 = [
+                const orderDeterministic1 = [
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 0, value: '1' } } },
                     { frame: 0, event: { kind: 'Subscribed', id: 0 } },
                     { frame: 0, event: { kind: 'InitialEffectsCalled', initial: { identifier: 2, value: '5' } } },
@@ -334,15 +334,21 @@ describe("System", function () {
                     { frame: 13, event: { kind: 'InitialEffectsCalled', initial: { identifier: 3, value: '5' } } },
                     { frame: 13, event: { kind: 'Subscribed', id: 3 } }
                 ];
-                var orderDeterministic2 = [
+                const orderDeterministic2 = [
                     { frame: 20, event: { kind: 'Disposed', id: 3 } },
                     { frame: 20, event: { kind: 'DisposedSource', } }
                 ];
-                var possibility1 = orderDeterministic1.concat([{ frame: 13, event: { kind: 'Disposed', id: 0 } },
-                    { frame: 13, event: { kind: 'Disposed', id: 2 } }], orderDeterministic2);
-                var possibility2 = orderDeterministic1.concat([{ frame: 13, event: { kind: 'Disposed', id: 2 } },
-                    { frame: 13, event: { kind: 'Disposed', id: 0 } }], orderDeterministic2);
-                if (!(js_extensions_1.deepEqual(recordedEvents, possibility1) || js_extensions_1.deepEqual(recordedEvents, possibility2))) {
+                const possibility1 = [...orderDeterministic1,
+                    { frame: 13, event: { kind: 'Disposed', id: 0 } },
+                    { frame: 13, event: { kind: 'Disposed', id: 2 } },
+                    ...orderDeterministic2
+                ];
+                const possibility2 = [...orderDeterministic1,
+                    { frame: 13, event: { kind: 'Disposed', id: 2 } },
+                    { frame: 13, event: { kind: 'Disposed', id: 0 } },
+                    ...orderDeterministic2
+                ];
+                if (!((0, js_extensions_1.deepEqual)(recordedEvents, possibility1) || (0, js_extensions_1.deepEqual)(recordedEvents, possibility2))) {
                     chai_1.expect.fail(recordedEvents, possibility1);
                 }
             });
@@ -350,11 +356,11 @@ describe("System", function () {
     });
 });
 function track(args) {
-    return function (source) {
-        return rxjs_1.Observable.create(function (observer) {
+    return source => {
+        return rxjs_1.Observable.create((observer) => {
             args.onSubscribed && args.onSubscribed();
-            var subscription = source.subscribe(function (next) { args.onNext && args.onNext(next); observer.next(next); }, function (error) { args.onError && args.onError(error); observer.error(error); }, function () { args.onComplete && args.onComplete(); observer.complete(); });
-            return new rxjs_1.Subscription(function () {
+            const subscription = source.subscribe(next => { args.onNext && args.onNext(next); observer.next(next); }, error => { args.onError && args.onError(error); observer.error(error); }, () => { args.onComplete && args.onComplete(); observer.complete(); });
+            return new rxjs_1.Subscription(() => {
                 subscription.unsubscribe();
                 args.onDispose && args.onDispose();
             });
@@ -362,6 +368,6 @@ function track(args) {
     };
 }
 function assertDeepEqual(actual, expected) {
-    chai_1.expect(actual).to.deep.equal(expected);
+    (0, chai_1.expect)(actual).to.deep.equal(expected);
 }
 //# sourceMappingURL=test.js.map

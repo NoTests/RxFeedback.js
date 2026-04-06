@@ -3,7 +3,7 @@ import { SchedulerLike, MonoTypeOperatorFunction } from "rxjs";
 /**
  * Feedback loop transforming `State` into a sequence of `Event`s.
  */
-export declare type FeedbackLoop<State, Event> = (state: rx.Observable<State>, scheduler: SchedulerLike) => rx.Observable<Event>;
+export type FeedbackLoop<State, Event> = (state: rx.Observable<State>, scheduler: SchedulerLike) => rx.Observable<Event>;
 /**
  * Lifts feedback loop that operates on a subset of state and emits embeddable events to the parent feedback loop.
  *
@@ -17,7 +17,7 @@ export declare function liftFeedbackLoop<InnerState, InnerEvent, OuterState, Out
 /**
  * Single request sending state machine.
  */
-export declare type SingleRequest<Request, SuccessResult, ErrorResult> = {
+export type SingleRequest<Request, SuccessResult, ErrorResult> = {
     kind: "idle";
 } | {
     kind: "try";
@@ -85,11 +85,11 @@ export declare function system<State, Event>(initialState: State, reduce: (state
 /**
  * Time interval in seconds.
  */
-export declare type TimeIntervalInSeconds = number;
+export type TimeIntervalInSeconds = number;
 /**
  * Configuration of commonly used retry strategies for feedback loop.
  */
-export declare type FeedbackRetryStrategy<Event> = {
+export type FeedbackRetryStrategy<Event> = {
     kind: "ignoreErrorJustComplete";
 } | {
     kind: "ignoreErrorAndReturn";

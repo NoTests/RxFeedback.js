@@ -365,7 +365,7 @@ export namespace Feedbacks {
     return reactWithLatest(
       state => {
         const requestInstances = requests(state);
-        const identifiableRequests: { id: {}, request: Request }[] = []
+        const identifiableRequests: { id: any, request: Request }[] = []
         requestInstances.forEach(request => {
           identifiableRequests.push({ id: request, request: request });
         });

@@ -1,6 +1,6 @@
 import { TestScheduler } from 'rxjs/testing';
 import { expect } from 'chai';
-import { Notification, MonoTypeOperatorFunction, Observable, Observer, Subscription, of, concat, NEVER } from 'rxjs';
+import { ObservableNotification, MonoTypeOperatorFunction, Observable, Observer, Subscription, of, concat, NEVER } from 'rxjs';
 import { map } from 'rxjs/internal/operators/map';
 import { dematerialize } from 'rxjs/internal/operators/dematerialize';
 import { Feedbacks, defaultRetryStrategy } from '..';
@@ -224,11 +224,11 @@ describe("System", function () {
                             (initial: TestChild, state: Observable<TestChild>): Observable<String> => {
                             recordEvent({ kind: 'InitialEffectsCalled', initial });
                             return state.pipe(
-                                map((test): Notification<string> => {
+                                map((test): ObservableNotification<string> => {
                                     if (test.value == '3') {
-                                        return Notification.createComplete();
+                                        return { kind: 'C' };
                                     }
-                                    return Notification.createNext(`Got ${test.value}`);
+                                    return { kind: 'N', value: `Got ${test.value}` };
                                 }),
                                 dematerialize(),
                                 track({
