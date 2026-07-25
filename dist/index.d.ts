@@ -3,7 +3,7 @@ import { SchedulerLike, MonoTypeOperatorFunction } from "rxjs";
 /**
  * Feedback loop transforming `State` into a sequence of `Event`s.
  */
-export type FeedbackLoop<State, Event> = (state: rx.Observable<State>, scheduler: SchedulerLike) => rx.Observable<Event>;
+export type FeedbackLoop<State, Event> = (state: rx.Observable<State>) => rx.Observable<Event>;
 /**
  * Lifts feedback loop that operates on a subset of state and emits embeddable events to the parent feedback loop.
  *
@@ -79,9 +79,45 @@ export declare function isFailed<Request, SuccessResult, ErrorResult>(request: S
  * @param initialState The initial state of the system.
  * @param reduce Calculates the new system state from the existing state and a transition event (system integrator, reducer).
  * @param feedback The feedback loops that produce events depending on the current system state.
+ * @param scheduler The scheduler used to serialize the state machine transitions.
+ * @param errorHandling The error handling policy of the system.
  * @returns The current state of the system.
  */
-export declare function system<State, Event>(initialState: State, reduce: (state: State, event: Event) => State, feedback: FeedbackLoop<State, Event>[]): rx.Observable<State>;
+export declare function system<State, Event>(initialState: State, reduce: (state: State, event: Event) => State, feedback: FeedbackLoop<State, Event>[], scheduler?: SchedulerLike, errorHandling?: ErrorHandling<State, Event>): rx.Observable<State>;
+/**
+ * Anything can be thrown in JavaScript, so an error is anything.
+ */
+export type ThrownError = any;
+/**
+ * Error handling policy of a system.
+ */
+export type ErrorHandling<State, Event> = {
+    /**
+     * Calculates the new system state in case `reduce` throws.
+     *
+     * Rethrowing the error from this function terminates the system with that error.
+     */
+    onReduceError: (state: State, error: ThrownError) => State;
+    /**
+     * Guards the events of every single feedback loop against errors.
+     *
+     * It is applied to each feedback loop separately, so an error in one feedback loop
+     * can be handled without terminating the other feedback loops.
+     *
+     * `materializedRetryStrategy` creates commonly used guards.
+     */
+    feedbackErrorGuard: (events: rx.Observable<Event>) => rx.Observable<Event>;
+};
+/**
+ * The default error handling of a system.
+ *
+ * Errors thrown from `reduce` are logged to the console and the last good state is kept,
+ * feedback loops are retried by using the `defaultRetryStrategy` (exponential backoff,
+ * waiting at most 5 seconds between the retries).
+ *
+ * @param scheduler The scheduler used to schedule the feedback loop retries.
+ */
+export declare function defaultErrorHandling<State, Event>(scheduler?: SchedulerLike): ErrorHandling<State, Event>;
 /**
  * Time interval in seconds.
  */
@@ -98,12 +134,19 @@ export type FeedbackRetryStrategy<Event> = {
     kind: "catchError";
     handle: (error: {}) => Event;
 } | {
+    /**
+     * Retries after `initialTimeout` seconds and doubles the timeout on every
+     * subsequent error, but never waits longer than
+     * `initialTimeout * maxBackoffFactor` seconds.
+     */
     kind: "exponentialBackoff";
     initialTimeout: TimeIntervalInSeconds;
     maxBackoffFactor: number;
 };
 /**
  * Default retry strategy for a feedback loop.
+ *
+ * Exponential backoff, waiting at most 5 seconds between the retries (1s, 2s, 4s, 5s, 5s, ...).
  */
 export declare function defaultRetryStrategy<Event>(): FeedbackRetryStrategy<Event>;
 /**
@@ -114,8 +157,9 @@ export declare let unhandledErrors: rx.Observable<Error>;
  * Creates `Observable` transformation from configuration.
  *
  * @param strategy The strategy configuration.
+ * @param scheduler The scheduler used to schedule the retries.
  */
-export declare function materializedRetryStrategy<Event>(strategy: FeedbackRetryStrategy<Event>): MonoTypeOperatorFunction<Event>;
+export declare function materializedRetryStrategy<Event>(strategy: FeedbackRetryStrategy<Event>, scheduler?: SchedulerLike): MonoTypeOperatorFunction<Event>;
 export declare namespace Feedbacks {
     /**
      State: State type of the system.
@@ -128,10 +172,9 @@ export declare namespace Feedbacks {
   
      * @param request The request to perform some effects.
      * @param effects The request effects.
-     * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
-    function react<State, Request, Event>(request: (state: State) => Request | null, effects: (request: Request, scheduler: SchedulerLike) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
+    function react<State, Request, Event>(request: (state: State) => Request | null, effects: (request: Request) => rx.Observable<Event>): FeedbackLoop<State, Event>;
     /**
      State: State type of the system.
      Request: Subset of state used to control the feedback loop.
@@ -143,10 +186,9 @@ export declare namespace Feedbacks {
   
      * @param requests Requests to perform some effects.
      * @param effects The request effects.
-     * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
-    function reactSet<State, Request, Event>(requests: (state: State) => Set<Request>, effects: (request: Request, scheduler: SchedulerLike) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
+    function reactSet<State, Request, Event>(requests: (state: State) => Set<Request>, effects: (request: Request) => rx.Observable<Event>): FeedbackLoop<State, Event>;
     /**
      State: State type of the system.
      Request: Subset of state used to control the feedback loop.
@@ -157,11 +199,10 @@ export declare namespace Feedbacks {
   
      * @param requests Requests to perform some effects.
      * @param effects The request effects.
-     * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
     function reactWithLatest<State, Request, Event>(request: (state: State) => {
         id: any;
         request: Request;
-    }[], effects: (initialRequest: Request, latestRequest: rx.Observable<Request>, scheduler: SchedulerLike) => rx.Observable<Event>, retryStrategy: FeedbackRetryStrategy<Event>): FeedbackLoop<State, Event>;
+    }[], effects: (initialRequest: Request, latestRequest: rx.Observable<Request>) => rx.Observable<Event>): FeedbackLoop<State, Event>;
 }

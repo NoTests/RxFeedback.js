@@ -12,17 +12,26 @@ The simplest architecture for [RxJS](https://github.com/ReactiveX/RxJS)
 
 ```typescript
     type FeedbackLoop<State, Event> = 
-        (state: rx.Observable<State>, scheduler: IScheduler) => rx.Observable<Event>;
+        (state: rx.Observable<State>) => rx.Observable<Event>;
 
-    declare module 'rxjs/Observable' {
-        namespace Observable {
-            function system<State, Event>(
-                initialState: State,
-                reduce: (state: State, event: Event) => State,
-                feedback: FeedbackLoop<State, Event>[],
-            ): Observable<State>;
-        }
-    }
+    type ErrorHandling<State, Event> = {
+        // Calculates the new state in case `reduce` throws. Rethrowing terminates the system.
+        onReduceError: (state: State, error: any) => State;
+        // Applied to the events of every single feedback loop.
+        feedbackErrorGuard: (events: rx.Observable<Event>) => rx.Observable<Event>;
+    };
+
+    function system<State, Event>(
+        initialState: State,
+        reduce: (state: State, event: Event) => State,
+        feedback: FeedbackLoop<State, Event>[],
+        // defaults to `rx.queueScheduler`
+        scheduler?: SchedulerLike,
+        // defaults to `defaultErrorHandling()`: `reduce` errors are logged to the console
+        // and the last good state is kept, feedback loops are retried by using the
+        // `defaultRetryStrategy` (exponential backoff, at most 5 seconds between the retries)
+        errorHandling?: ErrorHandling<State, Event>
+    ): rx.Observable<State>;
 ```
 
 # Why

@@ -1,11 +1,12 @@
 {
   "name": "rxfeedback",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Architecture for RxJS",
   "main": "dist/index.js",
   "scripts": {
-    "build": "./node_modules/typescript/bin/tsc",
-    "test": "./node_modules/mocha/bin/_mocha ./src/test/test.ts -r ./node_modules/ts-node/register ./src/test/**/*.ts"
+    "build": "./node_modules/typescript/bin/tsc && npm run check-deprecations",
+    "check-deprecations": "node ./scripts/check-deprecations.js",
+    "test": "npm run check-deprecations && ./node_modules/mocha/bin/_mocha ./src/test/test.ts -r ./node_modules/ts-node/register ./src/test/**/*.ts"
   },
   "repository": {
     "type": "git",

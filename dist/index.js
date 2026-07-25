@@ -7,6 +7,7 @@ exports.isTry = isTry;
 exports.isSuccess = isSuccess;
 exports.isFailed = isFailed;
 exports.system = system;
+exports.defaultErrorHandling = defaultErrorHandling;
 exports.defaultRetryStrategy = defaultRetryStrategy;
 exports.materializedRetryStrategy = materializedRetryStrategy;
 const rx = require("rxjs");
@@ -18,9 +19,7 @@ const subscribeOn_1 = require("rxjs/internal/operators/subscribeOn");
 const tap_1 = require("rxjs/internal/operators/tap");
 const startWith_1 = require("rxjs/internal/operators/startWith");
 const catchError_1 = require("rxjs/internal/operators/catchError");
-const delay_1 = require("rxjs/internal/operators/delay");
-const retryWhen_1 = require("rxjs/internal/operators/retryWhen");
-const switchMap_1 = require("rxjs/internal/operators/switchMap");
+const retry_1 = require("rxjs/internal/operators/retry");
 const js_extensions_1 = require("./js+extensions");
 /**
  * Lifts feedback loop that operates on a subset of state and emits embeddable events to the parent feedback loop.
@@ -29,8 +28,8 @@ const js_extensions_1 = require("./js+extensions");
  * @param mappings State and event transformers.
  */
 function liftFeedbackLoop(loops, mappings) {
-    return (outerState, scheduler) => {
-        const embededLoops = loops.map(loop => loop(outerState.pipe((0, map_1.map)(mappings.mapState)), scheduler)
+    return outerState => {
+        const embededLoops = loops.map(loop => loop(outerState.pipe((0, map_1.map)(mappings.mapState)))
             .pipe((0, map_1.map)(mappings.mapEvent)));
         return rx.merge(...embededLoops);
     };
@@ -115,37 +114,66 @@ function isFailed(request) {
  * @param initialState The initial state of the system.
  * @param reduce Calculates the new system state from the existing state and a transition event (system integrator, reducer).
  * @param feedback The feedback loops that produce events depending on the current system state.
+ * @param scheduler The scheduler used to serialize the state machine transitions.
+ * @param errorHandling The error handling policy of the system.
  * @returns The current state of the system.
  */
-function system(initialState, reduce, feedback) {
+function system(initialState, reduce, feedback, scheduler = rx.queueScheduler, errorHandling = defaultErrorHandling(scheduler)) {
     return rx.defer(() => {
         const state = new rx.ReplaySubject(1);
-        const scheduler = rx.queueScheduler;
-        const events = feedback.map(x => x(state, scheduler));
+        const events = feedback.map(x => errorHandling.feedbackErrorGuard(x(state).pipe((0, observeOn_1.observeOn)(scheduler))));
         const mergedEvent = rx.merge(...events).pipe((0, observeOn_1.observeOn)(scheduler));
+        const reduceWithErrorHandling = (currentState, event) => {
+            try {
+                return reduce(currentState, event);
+            }
+            catch (error) {
+                return errorHandling.onReduceError(currentState, error);
+            }
+        };
         const eventsWithEffects = mergedEvent
-            .pipe((0, scan_1.scan)(reduce, initialState), (0, tap_1.tap)(x => {
+            .pipe((0, scan_1.scan)(reduceWithErrorHandling, initialState), (0, tap_1.tap)(x => {
             state.next(x);
         }), (0, subscribeOn_1.subscribeOn)(scheduler), (0, startWith_1.startWith)(initialState), (0, observeOn_1.observeOn)(scheduler));
         const hackOnSubscribed = rx.defer(() => {
             state.next(initialState);
-            return rx.empty();
+            return rx.EMPTY;
         });
         return rx.merge(...[eventsWithEffects, hackOnSubscribed])
             .pipe((0, catchError_1.catchError)(e => {
             dispatchError(e);
-            return rx.throwError(e);
+            return rx.throwError(() => e);
         }));
     });
 }
 /**
+ * The default error handling of a system.
+ *
+ * Errors thrown from `reduce` are logged to the console and the last good state is kept,
+ * feedback loops are retried by using the `defaultRetryStrategy` (exponential backoff,
+ * waiting at most 5 seconds between the retries).
+ *
+ * @param scheduler The scheduler used to schedule the feedback loop retries.
+ */
+function defaultErrorHandling(scheduler = rx.queueScheduler) {
+    return {
+        onReduceError: (state, error) => {
+            console.error(error);
+            return state;
+        },
+        feedbackErrorGuard: materializedRetryStrategy(defaultRetryStrategy(), scheduler)
+    };
+}
+/**
  * Default retry strategy for a feedback loop.
+ *
+ * Exponential backoff, waiting at most 5 seconds between the retries (1s, 2s, 4s, 5s, 5s, ...).
  */
 function defaultRetryStrategy() {
     return {
         kind: "exponentialBackoff",
         initialTimeout: 1,
-        maxBackoffFactor: 8
+        maxBackoffFactor: 5
     };
 }
 let dispatchErrors = new rx.Subject();
@@ -164,14 +192,15 @@ exports.unhandledErrors = dispatchErrors;
  * Creates `Observable` transformation from configuration.
  *
  * @param strategy The strategy configuration.
+ * @param scheduler The scheduler used to schedule the retries.
  */
-function materializedRetryStrategy(strategy) {
+function materializedRetryStrategy(strategy, scheduler = rx.queueScheduler) {
     return (source) => {
         switch (strategy.kind) {
             case "ignoreErrorJustComplete":
                 return source.pipe((0, catchError_1.catchError)(e => {
                     dispatchError(e);
-                    return rx.empty();
+                    return rx.EMPTY;
                 }));
             case "ignoreErrorAndReturn":
                 return source.pipe((0, catchError_1.catchError)(e => {
@@ -179,19 +208,14 @@ function materializedRetryStrategy(strategy) {
                     return rx.of(strategy.value);
                 }));
             case "exponentialBackoff":
-                return rx.defer(() => {
-                    let counter = 1;
-                    return source.pipe((0, tap_1.tap)(() => {
-                        counter = 1;
-                    }, () => {
-                        if (counter * 2 <= strategy.maxBackoffFactor) {
-                            counter *= 2;
-                        }
-                    }), (0, retryWhen_1.retryWhen)(e => e.pipe((0, switchMap_1.switchMap)(x => {
-                        dispatchError(x);
-                        return rx.of(0).pipe((0, delay_1.delay)(strategy.initialTimeout * counter * 1000));
-                    }))));
-                });
+                return source.pipe((0, retry_1.retry)({
+                    resetOnSuccess: true,
+                    delay: (error, retryCount) => {
+                        dispatchError(error);
+                        const backoffFactor = Math.min(Math.pow(2, retryCount - 1), strategy.maxBackoffFactor);
+                        return rx.timer(strategy.initialTimeout * backoffFactor * 1000, scheduler);
+                    }
+                }));
             case "catchError":
                 return source.pipe((0, catchError_1.catchError)(e => {
                     dispatchError(e);
@@ -215,16 +239,15 @@ var Feedbacks;
   
      * @param request The request to perform some effects.
      * @param effects The request effects.
-     * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
-    function react(request, effects, retryStrategy) {
+    function react(request, effects) {
         return reactWithLatest(state => {
             const requestInstance = request(state);
             return requestInstance != null
                 ? [{ id: requestInstance, request: requestInstance }]
                 : [];
-        }, (request, _, scheduler) => effects(request, scheduler), retryStrategy);
+        }, effects);
     }
     Feedbacks.react = react;
     /**
@@ -238,10 +261,9 @@ var Feedbacks;
   
      * @param requests Requests to perform some effects.
      * @param effects The request effects.
-     * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
-    function reactSet(requests, effects, retryStrategy) {
+    function reactSet(requests, effects) {
         return reactWithLatest(state => {
             const requestInstances = requests(state);
             const identifiableRequests = [];
@@ -249,7 +271,7 @@ var Feedbacks;
                 identifiableRequests.push({ id: request, request: request });
             });
             return identifiableRequests;
-        }, (request, _, scheduler) => effects(request, scheduler), retryStrategy);
+        }, effects);
     }
     Feedbacks.reactSet = reactSet;
     /**
@@ -262,13 +284,11 @@ var Feedbacks;
   
      * @param requests Requests to perform some effects.
      * @param effects The request effects.
-     * @param retryStrategy The retry strategy for the effects in case an error happends.
      * @returns The feedback loop performing the effects.
      */
-    function reactWithLatest(request, effects, retryStrategy) {
-        const retryer = materializedRetryStrategy(retryStrategy);
-        return (state, scheduler) => {
-            const events = new rx.Observable((observer) => {
+    function reactWithLatest(request, effects) {
+        return (state) => {
+            return new rx.Observable((observer) => {
                 let requestLifetimeTracker = {
                     isUnsubscribed: false,
                     lifetimeByIdentifier: {}
@@ -280,79 +300,88 @@ var Feedbacks;
                     Object.keys(inFlightRequests).forEach(key => { inFlightRequests[key].subscription.unsubscribe(); });
                 }
                 let subscription = state.pipe((0, map_1.map)(request))
-                    .subscribe(requests => {
-                    const state = requestLifetimeTracker;
-                    if (state.isUnsubscribed) {
-                        return;
-                    }
-                    let lifetimeToUnsubscribeByIdentifier = Object.assign({}, state.lifetimeByIdentifier);
-                    requests.forEach(indexedRequest => {
-                        const requestID = (0, js_extensions_1.canonicalString)(indexedRequest.id);
-                        const request = indexedRequest.request;
-                        let requestLifetime = state.lifetimeByIdentifier[requestID];
-                        if (requestLifetime) {
-                            delete lifetimeToUnsubscribeByIdentifier[requestID];
-                            if ((0, js_extensions_1.deepEqual)(requestLifetime.latestRequest.value, request)) {
+                    .subscribe({
+                    next: requests => {
+                        const state = requestLifetimeTracker;
+                        if (state.isUnsubscribed) {
+                            return;
+                        }
+                        let lifetimeToUnsubscribeByIdentifier = Object.assign({}, state.lifetimeByIdentifier);
+                        requests.forEach(indexedRequest => {
+                            // Effects can terminate the feedback loop in the middle of this iteration.
+                            if (state.isUnsubscribed) {
                                 return;
                             }
-                            requestLifetime.latestRequest.next(request);
+                            const requestID = (0, js_extensions_1.canonicalString)(indexedRequest.id);
+                            const request = indexedRequest.request;
+                            let requestLifetime = state.lifetimeByIdentifier[requestID];
+                            if (requestLifetime) {
+                                delete lifetimeToUnsubscribeByIdentifier[requestID];
+                                if ((0, js_extensions_1.deepEqual)(requestLifetime.latestRequest.value, request)) {
+                                    return;
+                                }
+                                requestLifetime.latestRequest.next(request);
+                            }
+                            else {
+                                let subscription = new rx.Subscription();
+                                let latestRequestSubject = new rxjs_1.BehaviorSubject(request);
+                                let lifetimeIdentifier = {};
+                                state.lifetimeByIdentifier[requestID] = {
+                                    subscription: subscription,
+                                    lifetimeIdentifier: lifetimeIdentifier,
+                                    latestRequest: latestRequestSubject
+                                };
+                                let requestsSubscription = effects(request, latestRequestSubject.asObservable())
+                                    .subscribe({
+                                    next: event => {
+                                        const lifetime = state.lifetimeByIdentifier[requestID];
+                                        if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier)) {
+                                            return;
+                                        }
+                                        if (state.isUnsubscribed) {
+                                            return;
+                                        }
+                                        observer.next(event);
+                                    },
+                                    error: error => {
+                                        const lifetime = state.lifetimeByIdentifier[requestID];
+                                        if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier)) {
+                                            return;
+                                        }
+                                        if (state.isUnsubscribed) {
+                                            return;
+                                        }
+                                        observer.error(error);
+                                    }
+                                });
+                                subscription.add(requestsSubscription);
+                            }
+                        });
+                        const allUnsubscribeKeys = Object.keys(lifetimeToUnsubscribeByIdentifier);
+                        allUnsubscribeKeys.forEach(key => {
+                            if (state.lifetimeByIdentifier[key]
+                                && state.lifetimeByIdentifier[key].lifetimeIdentifier === lifetimeToUnsubscribeByIdentifier[key].lifetimeIdentifier) {
+                                delete state.lifetimeByIdentifier[key];
+                            }
+                            lifetimeToUnsubscribeByIdentifier[key].subscription.unsubscribe();
+                        });
+                    },
+                    error: error => {
+                        const state = requestLifetimeTracker;
+                        if (state.isUnsubscribed) {
+                            return;
                         }
-                        else {
-                            let subscription = new rx.Subscription();
-                            let latestRequestSubject = new rxjs_1.BehaviorSubject(request);
-                            let lifetimeIdentifier = {};
-                            state.lifetimeByIdentifier[requestID] = {
-                                subscription: subscription,
-                                lifetimeIdentifier: lifetimeIdentifier,
-                                latestRequest: latestRequestSubject
-                            };
-                            let requestsSubscription = effects(request, latestRequestSubject.asObservable(), scheduler)
-                                .pipe((0, observeOn_1.observeOn)(scheduler), retryer)
-                                .subscribe(event => {
-                                const lifetime = state.lifetimeByIdentifier[requestID];
-                                if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier)) {
-                                    return;
-                                }
-                                if (state.isUnsubscribed) {
-                                    return;
-                                }
-                                observer.next(event);
-                            }, error => {
-                                const lifetime = state.lifetimeByIdentifier[requestID];
-                                if (!(lifetime && lifetime.lifetimeIdentifier === lifetimeIdentifier)) {
-                                    return;
-                                }
-                                if (state.isUnsubscribed) {
-                                    return;
-                                }
-                                observer.error(error);
-                            });
-                            subscription.add(requestsSubscription);
-                        }
-                    });
-                    const allUnsubscribeKeys = Object.keys(lifetimeToUnsubscribeByIdentifier);
-                    allUnsubscribeKeys.forEach(key => {
-                        if (state.lifetimeByIdentifier[key]
-                            && state.lifetimeByIdentifier[key].lifetimeIdentifier === lifetimeToUnsubscribeByIdentifier[key].lifetimeIdentifier) {
-                            delete state.lifetimeByIdentifier[key];
-                        }
-                        lifetimeToUnsubscribeByIdentifier[key].subscription.unsubscribe();
-                    });
-                }, error => {
-                    const state = requestLifetimeTracker;
-                    if (state.isUnsubscribed) {
-                        return;
+                        observer.error(error);
+                    },
+                    complete: () => {
+                        observer.complete();
                     }
-                    observer.error(error);
-                }, () => {
-                    observer.complete();
                 });
                 return new rx.Subscription(() => {
                     unsubscribe();
                     subscription.unsubscribe();
                 });
             });
-            return retryer(events);
         };
     }
     Feedbacks.reactWithLatest = reactWithLatest;
